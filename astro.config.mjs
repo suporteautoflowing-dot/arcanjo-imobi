@@ -8,4 +8,7 @@ export default defineConfig({
     port: Number(process.env.PORT) || 4400,
     host: process.env.HOST || '0.0.0.0',
   },
+  security: {
+    checkOrigin: false,
+  },
 });
