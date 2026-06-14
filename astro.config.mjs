@@ -4,5 +4,8 @@ import node from '@astrojs/node';
 export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
-  server: { port: Number(process.env.PORT) || 4400 },
+  server: {
+    port: Number(process.env.PORT) || 4400,
+    host: process.env.HOST || '0.0.0.0',
+  },
 });
