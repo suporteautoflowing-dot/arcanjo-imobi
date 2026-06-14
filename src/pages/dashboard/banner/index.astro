@@ -1,0 +1,248 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../../lib/auth';
+import { db } from '../../../lib/db';
+import { tenants } from '../../../lib/schema';
+import { eq } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+const [tenant] = await db.select().from(tenants).limit(1);
+if (!tenant) return Astro.redirect('/auth/login');
+
+let config = {
+  hero_titulo:      tenant.hero_titulo      ?? 'Encontre o imóvel dos seus sonhos',
+  hero_subtitulo:   (tenant.sobre_json as any)?.hero_subtitulo ?? 'Mais de 500 imóveis disponíveis. Compra, venda e aluguel com a melhor assessoria.',
+  hero_cta_venda:   tenant.hero_cta_venda   ?? 'Ver imóveis à venda',
+  hero_cta_aluguel: tenant.hero_cta_aluguel ?? 'Para alugar',
+  stat_imoveis:     tenant.stat_imoveis     ?? '500+',
+  stat_anos:        tenant.stat_anos        ?? '10+',
+  stat_clientes:    tenant.stat_clientes    ?? '1.200+',
+  hero_imagem:      tenant.hero_imagem      ?? '',
+};
+
+let successMsg = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+
+  const novoConfig = {
+    hero_titulo:      String(form.get('hero_titulo') ?? ''),
+    hero_cta_venda:   String(form.get('hero_cta_venda') ?? ''),
+    hero_cta_aluguel: String(form.get('hero_cta_aluguel') ?? ''),
+    stat_imoveis:     String(form.get('stat_imoveis') ?? ''),
+    stat_anos:        String(form.get('stat_anos') ?? ''),
+    stat_clientes:    String(form.get('stat_clientes') ?? ''),
+    sobre_json:       { ...(tenant.sobre_json as any ?? {}), hero_subtitulo: String(form.get('hero_subtitulo') ?? '') },
+    updated_at:       new Date(),
+  };
+
+  await db.update(tenants).set(novoConfig);
+  successMsg = 'Banner atualizado com sucesso!';
+  Object.assign(config, { ...novoConfig, hero_subtitulo: novoConfig.sobre_json.hero_subtitulo });
+}
+---
+
+<AdminLayout title="Banner / Hero" breadcrumb="Dashboard / Banner">
+  {successMsg && (
+    <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1.25rem;color:#166534;font-weight:500;font-size:0.875rem;">
+      ✓ {successMsg}
+    </div>
+  )}
+
+  <form method="POST">
+    <div class="grid-2" style="gap:1.5rem;align-items:start;">
+
+      <!-- Texto do hero -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Texto Principal (Hero)</span></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+          <div class="form-group">
+            <label class="form-label">Título</label>
+            <input name="hero_titulo" class="form-input" value={config.hero_titulo} placeholder="Encontre o imóvel dos seus sonhos" />
+            <span class="form-hint">A última palavra pode ser destacada em azul no site.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Subtítulo / Descrição</label>
+            <textarea name="hero_subtitulo" class="form-textarea" rows="4">{config.hero_subtitulo}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Botão Primário (Comprar)</label>
+            <input name="hero_cta_venda" class="form-input" value={config.hero_cta_venda} />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Botão Secundário (Alugar)</label>
+            <input name="hero_cta_aluguel" class="form-input" value={config.hero_cta_aluguel} />
+          </div>
+        </div>
+      </div>
+
+      <!-- Estatísticas + Preview -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Estatísticas</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Imóveis</label>
+              <input name="stat_imoveis" class="form-input" value={config.stat_imoveis} placeholder="500+" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Anos de mercado</label>
+              <input name="stat_anos" class="form-input" value={config.stat_anos} placeholder="10+" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Clientes atendidos</label>
+              <input name="stat_clientes" class="form-input" value={config.stat_clientes} placeholder="1.200+" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview do banner -->
+        <div class="card" style="overflow:hidden;">
+          <div class="card-header"><span class="card-title">Preview</span></div>
+          <div style="background:#0f172a;padding:1.5rem;border-radius:0 0 12px 12px;position:relative;min-height:200px;">
+            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.15em;color:#93c5fd;text-transform:uppercase;margin-bottom:0.5rem;">{tenant.nome_empresa}</div>
+            <h2 id="prev-title" style="color:white;font-size:1.375rem;font-weight:800;line-height:1.2;margin-bottom:0.75rem;">{config.hero_titulo}</h2>
+            <p id="prev-desc" style="color:rgba(255,255,255,0.7);font-size:0.8rem;margin-bottom:1rem;">{config.hero_subtitulo}</p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <span id="prev-cta1" style="background:#0d6efd;color:white;padding:0.4rem 0.875rem;border-radius:6px;font-size:0.78rem;font-weight:600;">{config.hero_cta_venda}</span>
+              <span id="prev-cta2" style="border:1.5px solid white;color:white;padding:0.4rem 0.875rem;border-radius:6px;font-size:0.78rem;font-weight:600;">{config.hero_cta_aluguel}</span>
+            </div>
+            <div style="display:flex;gap:1.5rem;margin-top:1.25rem;border-top:1px solid rgba(255,255,255,0.1);padding-top:1rem;">
+              <div style="color:white;"><strong id="prev-s1" style="font-size:1.1rem;">{config.stat_imoveis}</strong><br/><span style="font-size:0.65rem;opacity:0.6;">Imóveis</span></div>
+              <div style="color:white;"><strong id="prev-s2" style="font-size:1.1rem;">{config.stat_anos}</strong><br/><span style="font-size:0.65rem;opacity:0.6;">Anos</span></div>
+              <div style="color:white;"><strong id="prev-s3" style="font-size:1.1rem;">{config.stat_clientes}</strong><br/><span style="font-size:0.65rem;opacity:0.6;">Clientes</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Imagem de fundo -->
+        <div class="card" style="margin-bottom:1.25rem;">
+          <div class="card-header"><span class="card-title">Imagem de Fundo</span></div>
+          <div class="card-body">
+            <div id="banner-preview" style="border-radius:10px;overflow:hidden;margin-bottom:1rem;position:relative;height:160px;background:#0f172a;">
+              {config.hero_imagem ? (
+                <img src={config.hero_imagem} alt="Banner atual" style="width:100%;height:100%;object-fit:cover;opacity:0.4;" />
+              ) : (
+                <div style="width:100%;height:100%;background:#1e293b;"></div>
+              )}
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0.5rem;">
+                <span style="color:white;font-size:0.82rem;font-weight:600;background:rgba(0,0,0,0.5);padding:0.4rem 1rem;border-radius:6px;">
+                  {config.hero_imagem ? '✓ Imagem personalizada' : 'Imagem padrão'}
+                </span>
+                {config.hero_imagem && (
+                  <button type="button" id="btn-remover-banner" class="btn btn-sm btn-outline" style="background:rgba(220,38,38,0.9);color:white;border:none;backdrop-filter:blur(4px);pointer-events:auto;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Remover Imagem
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <input type="file" id="banner-input" accept=".jpg,.jpeg,.png,.webp" style="display:none;" />
+              <div style="text-align:center;padding:1.25rem;border:2px dashed var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s;" onclick="document.getElementById('banner-input').click()">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto .5rem;color:var(--muted);display:block;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:0.82rem;font-weight:600;color:var(--text);">Clique para enviar imagem do banner</div>
+                <div style="font-size:0.72rem;color:var(--muted);margin-top:0.25rem;">JPG, PNG ou WEBP · máx. 2MB</div>
+                <div style="font-size:0.72rem;color:var(--primary);margin-top:0.15rem;font-weight:600;">📐 Recomendado: 1920 × 1080 px</div>
+              </div>
+            </div>
+            <div id="banner-status" style="margin-top:0.5rem;font-size:0.8rem;display:none;"></div>
+            <div style="margin-top:0.75rem;font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:0.35rem;">
+              💡 Imagem muito pesada?
+              <a href="https://www.iloveimg.com/pt/comprimir-imagem" target="_blank" rel="noopener noreferrer" style="color:var(--primary);font-weight:600;">Comprima aqui gratuitamente</a>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar Banner
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Preview em tempo real -->
+  <script>
+    const map: Record<string, string> = {
+      'hero_titulo': 'prev-title',
+      'hero_subtitulo': 'prev-desc',
+      'hero_cta_venda': 'prev-cta1',
+      'hero_cta_aluguel': 'prev-cta2',
+      'stat_imoveis': 'prev-s1',
+      'stat_anos': 'prev-s2',
+      'stat_clientes': 'prev-s3',
+    };
+    Object.entries(map).forEach(([name, id]) => {
+      const input = document.querySelector<HTMLInputElement|HTMLTextAreaElement>(`[name="${name}"]`);
+      const el = document.getElementById(id);
+      if (input && el) {
+        input.addEventListener('input', () => { el.textContent = input.value; });
+      }
+    });
+  </script>
+
+  <!-- Upload do banner -->
+  <script>
+    document.getElementById('btn-remover-banner')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirm('Remover imagem do banner?')) return;
+      
+      const status = document.getElementById('banner-status')!;
+      status.style.display = 'block';
+      status.style.color = '#2563eb';
+      status.textContent = '⏳ Removendo imagem...';
+
+      try {
+        await fetch('/api/tenant/update-brand', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo: 'hero_imagem', url: '' }),
+        });
+        status.style.color = '#166534';
+        status.textContent = '✓ Imagem removida! Recarregando...';
+        setTimeout(() => location.reload(), 800);
+      } catch {
+        status.style.color = '#991b1b';
+        status.textContent = '✕ Erro na conexão.';
+      }
+    });
+
+    document.getElementById('banner-input')?.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const status = document.getElementById('banner-status')!;
+      status.style.display = 'block';
+      status.style.color = '#2563eb';
+      status.textContent = '⏳ Enviando imagem...';
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.url) {
+          // salvar hero_imagem no tenant
+          await fetch('/api/tenant/update-brand', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tipo: 'hero_imagem', url: data.url }),
+          });
+          status.style.color = '#166534';
+          status.textContent = '✓ Imagem do banner atualizada! Recarregando...';
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          status.style.color = '#991b1b';
+          status.textContent = `✕ ${data.error ?? 'Erro ao enviar'}`;
+        }
+      } catch {
+        status.style.color = '#991b1b';
+        status.textContent = '✕ Erro na conexão.';
+      }
+    });
+  </script>
+</AdminLayout>

@@ -1,0 +1,10 @@
+---
+// Logout — limpar cookie e redirecionar
+return new Response(null, {
+  status: 302,
+  headers: {
+    'Set-Cookie': 'vitrine_token=; Path=/; HttpOnly; Max-Age=0',
+    'Location': '/auth/login',
+  },
+});
+---

@@ -1,0 +1,177 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../lib/auth';
+import { db } from '../../lib/db';
+import { tenants, imoveis, leads } from '../../lib/schema';
+import { eq, count, desc } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+const [tenant] = await db.select().from(tenants).limit(1);
+if (!tenant) return Astro.redirect('/auth/login');
+
+// Imóveis
+const imoveisData = await db.select().from(imoveis).orderBy(desc(imoveis.created_at));
+const totalImoveis = imoveisData.length;
+const disponiveis = imoveisData.filter(i => i.status === 'disponivel').length;
+const imoveisRecentes = imoveisData.slice(0, 5);
+
+// Leads
+const leadsData = await db.select().from(leads).orderBy(desc(leads.created_at));
+const totalLeads = leadsData.length;
+const leadsNovos = leadsData.filter(l => l.status === 'novo').length;
+const leadsRecentes = leadsData.slice(0, 5);
+
+function fmtPreco(v: any) {
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+}
+function fmtData(s: any) {
+  return new Date(s).toLocaleDateString('pt-BR');
+}
+---
+
+<AdminLayout title="Dashboard" breadcrumb="Início / Dashboard">
+  <!-- Stats -->
+  <div class="grid-4" style="margin-bottom:1.5rem;">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#eff6ff;color:#2563eb;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value">{totalImoveis}</div>
+        <div class="stat-label">Total de imóveis</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#f0fdf4;color:#16a34a;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value">{disponiveis}</div>
+        <div class="stat-label">Imóveis disponíveis</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fdf4ff;color:#9333ea;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value">{totalLeads}</div>
+        <div class="stat-label">Leads totais</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fff7ed;color:#ea580c;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value" style={leadsNovos > 0 ? 'color:#ea580c' : ''}>{leadsNovos}</div>
+        <div class="stat-label">Leads novos</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid: Leads + Imóveis -->
+  <div class="grid-2">
+    <!-- Leads recentes -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Leads Recentes</span>
+        <a href="/dashboard/leads" class="btn btn-outline btn-sm">Ver todos</a>
+      </div>
+      <div class="table-wrap">
+        {leadsData.length === 0 ? (
+          <div style="padding:2rem;text-align:center;color:var(--muted);font-size:0.875rem;">Nenhum lead ainda.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>WhatsApp</th>
+                <th>Status</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leadsRecentes.map(l => (
+                <tr>
+                  <td style="font-weight:500;">{l.nome}</td>
+                  <td style="color:var(--muted);">{l.whatsapp}</td>
+                  <td>
+                    <span class={`badge ${l.status === 'novo' ? 'badge-info' : 'badge-success'}`}>
+                      {l.status}
+                    </span>
+                  </td>
+                  <td style="color:var(--muted);font-size:0.8rem;">{fmtData(l.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+
+    <!-- Imóveis recentes -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Imóveis Cadastrados</span>
+        <a href="/dashboard/imoveis" class="btn btn-outline btn-sm">Ver todos</a>
+      </div>
+      <div class="table-wrap">
+        {imoveisData.length === 0 ? (
+          <div style="padding:2rem;text-align:center;color:var(--muted);font-size:0.875rem;">Nenhum imóvel cadastrado.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Imóvel</th>
+                <th>Preço</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {imoveisRecentes.map(i => (
+                <tr>
+                  <td>
+                    <div style="font-weight:500;font-size:0.85rem;">{i.titulo}</div>
+                    <div style="color:var(--muted);font-size:0.75rem;">{i.bairro} — {i.tipo}</div>
+                  </td>
+                  <td style="font-weight:600;color:var(--primary);">{fmtPreco(i.preco)}</td>
+                  <td>
+                    <span class={`badge ${i.status === 'disponivel' ? 'badge-success' : i.status === 'vendido' ? 'badge-gray' : 'badge-warning'}`}>
+                      {i.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <!-- Atalhos rápidos -->
+  <div class="card" style="margin-top:1.5rem;">
+    <div class="card-header"><span class="card-title">Ações Rápidas</span></div>
+    <div class="card-body" style="display:flex;gap:1rem;flex-wrap:wrap;">
+      <a href="/dashboard/imoveis/novo" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo Imóvel
+      </a>
+      <a href="/dashboard/leads" class="btn btn-outline">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Gerenciar Leads
+      </a>
+      <a href="/dashboard/banner" class="btn btn-outline">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Editar Banner
+      </a>
+      <a href="/dashboard/configuracoes" class="btn btn-outline">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2"/></svg>
+        Configurações
+      </a>
+    </div>
+  </div>
+</AdminLayout>

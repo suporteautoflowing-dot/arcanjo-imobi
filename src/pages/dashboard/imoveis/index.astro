@@ -1,0 +1,130 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../../lib/auth';
+import { db } from '../../../lib/db';
+import { imoveis } from '../../../lib/schema';
+import { eq, desc } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+// Handle delete action
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const deleteId = formData.get('deleteId')?.toString();
+  
+  if (deleteId) {
+    await db.delete(imoveis).where(eq(imoveis.id, deleteId));
+    return Astro.redirect('/dashboard/imoveis');
+  }
+}
+
+const imoveisData = await db.select().from(imoveis).orderBy(desc(imoveis.created_at));
+
+const filtro = Astro.url.searchParams.get('status') ?? '';
+const exibir = filtro ? imoveisData.filter(i => i.status === filtro) : imoveisData;
+
+function fmtPreco(v: any) {
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+}
+
+const statusMap: Record<string, string> = {
+  disponivel: 'badge-success',
+  vendido:    'badge-gray',
+  alugado:    'badge-warning',
+  inativo:    'badge-gray',
+};
+---
+
+<AdminLayout title="Imóveis" breadcrumb="Dashboard / Imóveis">
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1>Gerenciar Imóveis</h1>
+      <p>{imoveisData.length} imóvel(is) cadastrado(s)</p>
+    </div>
+    <a href="/dashboard/imoveis/novo" class="btn btn-primary" id="btn-novo-imovel">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Novo Imóvel
+    </a>
+  </div>
+
+  <!-- Filtros -->
+  <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+    {(['', 'disponivel', 'vendido', 'alugado'] as const).map(s => (
+      <a
+        href={s ? `/dashboard/imoveis?status=${s}` : '/dashboard/imoveis'}
+        class={`btn btn-sm ${filtro === s ? 'btn-primary' : 'btn-outline'}`}
+      >
+        {s || 'Todos'} {s ? `(${imoveisData.filter(i=>i.status===s).length})` : `(${imoveisData.length})`}
+      </a>
+    ))}
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      {exibir.length === 0 ? (
+        <div style="padding:3rem;text-align:center;color:var(--muted);">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 1rem;opacity:0.3;display:block;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Nenhum imóvel encontrado.
+          <br /><a href="/dashboard/imoveis/novo" class="btn btn-primary btn-sm" style="margin-top:1rem;">Cadastrar agora</a>
+        </div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Foto</th>
+              <th>Imóvel</th>
+              <th>Tipo</th>
+              <th>Preço</th>
+              <th>Status</th>
+              <th>Destaque</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {exibir.map(i => (
+              <tr>
+                <td>
+                  <img
+                    src={i.capa || 'https://via.placeholder.com/80?text=Sem+Capa'}
+                    alt={i.titulo}
+                    class="td-img"
+                    onerror="this.style.display='none'"
+                  />
+                </td>
+                <td>
+                  <div style="font-weight:600;">{i.titulo}</div>
+                  <div style="color:var(--muted);font-size:0.78rem;">{i.bairro}, {i.cidade}</div>
+                </td>
+                <td>
+                  <span class={`badge ${i.tipo === 'venda' ? 'badge-info' : 'badge-warning'}`}>
+                    {i.tipo === 'venda' ? 'Venda' : 'Aluguel'}
+                  </span>
+                </td>
+                <td style="font-weight:700;color:var(--primary);">{fmtPreco(i.preco)}</td>
+                <td>
+                  <span class={`badge ${statusMap[i.status] ?? 'badge-gray'}`}>{i.status}</span>
+                </td>
+                <td>
+                  {i.destaque
+                    ? <span class="badge badge-warning">⭐ Destaque</span>
+                    : <span style="color:var(--muted);font-size:0.8rem;">—</span>
+                  }
+                </td>
+                <td>
+                  <div class="td-actions">
+                    <a href={`/dashboard/imoveis/${i.id}`} class="btn btn-outline btn-sm">Editar</a>
+                    <form method="POST" style="display:inline;" onsubmit="return confirm('Tem certeza que deseja excluir este imóvel permanentemente?');">
+                      <input type="hidden" name="deleteId" value={i.id} />
+                      <button type="submit" class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:none;">Excluir</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </div>
+</AdminLayout>

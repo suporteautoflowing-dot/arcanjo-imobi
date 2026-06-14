@@ -1,0 +1,17 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: vitrine-db
+    environment:
+      MYSQL_USER: vitrine
+      MYSQL_PASSWORD: vitrine123
+      MYSQL_DATABASE: vitrineimobpro
+      MYSQL_ROOT_PASSWORD: root123
+    ports:
+      - '3306:3306'
+    volumes:
+      - vitrine_data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  vitrine_data:

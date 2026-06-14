@@ -1,0 +1,46 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Sidebar from '../components/Sidebar.astro';
+import Topbar from '../components/Topbar.astro';
+
+import { getAuthFromCookie } from '../lib/auth';
+import { db } from '../lib/db';
+import { tenants } from '../lib/schema';
+
+
+interface Props {
+  title?: string;
+  breadcrumb?: string;
+}
+const { title = 'Dashboard', breadcrumb } = Astro.props;
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+const [tenant] = await db.select().from(tenants).limit(1);
+if (!tenant) return Astro.redirect('/auth/login');
+---
+<BaseLayout title={title}>
+  <div class="admin-shell">
+    <Sidebar currentPath={Astro.url.pathname} tenant={tenant} />
+    <div style="flex:1; display:flex; flex-direction:column;">
+      <Topbar title={title} breadcrumb={breadcrumb} tenant={tenant} />
+      <main class="page-content">
+        <slot />
+      </main>
+    </div>
+  </div>
+  <!-- Toast container global -->
+  <div class="toast-container" id="toast-container"></div>
+  <script>
+    // Toast API global
+    window.showToast = (msg: string, type: 'success'|'error'|'info' = 'info') => {
+      const c = document.getElementById('toast-container')!;
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.innerHTML = `<span>${msg}</span>`;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    };
+  </script>
+</BaseLayout>

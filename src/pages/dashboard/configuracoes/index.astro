@@ -1,0 +1,399 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../../lib/auth';
+import { db } from '../../../lib/db';
+import { tenants } from '../../../lib/schema';
+import { eq } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+const [tenant] = await db.select().from(tenants).limit(1);
+if (!tenant) return Astro.redirect('/auth/login');
+
+const DEFAULTS = {
+  cor_primaria: '#0d6efd',
+  cor_primaria_dark: '#0056b3',
+  cor_escura: '#0f172a',
+  cor_texto: '#1f2937',
+  cor_muted: '#6b7280',
+};
+
+let conf = {
+  nome_empresa:      tenant.nome_empresa ?? '',
+  creci:             tenant.creci ?? '',
+  whatsapp:          tenant.whatsapp ?? '',
+  email:             tenant.email ?? '',
+  instagram:         tenant.instagram ?? '',
+  facebook:          tenant.facebook ?? '',
+  endereco:          tenant.endereco ?? '',
+  horario:           tenant.horario ?? '',
+  logo_url:          tenant.logo_url ?? '',
+  favicon_url:       tenant.favicon_url ?? '',
+  cor_primaria:      tenant.cor_primaria ?? DEFAULTS.cor_primaria,
+  cor_primaria_dark: tenant.cor_primaria_dark ?? DEFAULTS.cor_primaria_dark,
+  cor_escura:        tenant.cor_escura ?? DEFAULTS.cor_escura,
+  cor_texto:         tenant.cor_texto ?? DEFAULTS.cor_texto,
+  cor_muted:         tenant.cor_muted ?? DEFAULTS.cor_muted,
+};
+
+let successMsg = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const acao = String(form.get('acao') ?? 'salvar');
+
+  if (acao === 'salvar') {
+    await db.update(tenants).set({
+      nome_empresa: String(form.get('nome_empresa') ?? conf.nome_empresa),
+      creci:        String(form.get('creci') ?? ''),
+      whatsapp:     String(form.get('whatsapp') ?? ''),
+      email:        String(form.get('email') ?? ''),
+      instagram:    String(form.get('instagram') ?? ''),
+      facebook:     String(form.get('facebook') ?? ''),
+      endereco:     String(form.get('endereco') ?? ''),
+      horario:      String(form.get('horario') ?? ''),
+      updated_at:   new Date(),
+    }).where(eq(tenants.id, tenant.id));
+    
+    successMsg = 'Configurações salvas!';
+    // Update local object
+    conf.nome_empresa = String(form.get('nome_empresa') ?? conf.nome_empresa);
+    conf.creci =        String(form.get('creci') ?? '');
+    conf.whatsapp =     String(form.get('whatsapp') ?? '');
+    conf.email =        String(form.get('email') ?? '');
+    conf.instagram =    String(form.get('instagram') ?? '');
+    conf.facebook =     String(form.get('facebook') ?? '');
+    conf.endereco =     String(form.get('endereco') ?? '');
+    conf.horario =      String(form.get('horario') ?? '');
+  }
+
+  if (acao === 'salvar_cores') {
+    const novasCores = {
+      cor_primaria:      String(form.get('cor_primaria') ?? DEFAULTS.cor_primaria),
+      cor_primaria_dark: String(form.get('cor_primaria_dark') ?? DEFAULTS.cor_primaria_dark),
+      cor_escura:        String(form.get('cor_escura') ?? DEFAULTS.cor_escura),
+      cor_texto:         String(form.get('cor_texto') ?? DEFAULTS.cor_texto),
+      cor_muted:         String(form.get('cor_muted') ?? DEFAULTS.cor_muted),
+      updated_at:        new Date(),
+    };
+    await db.update(tenants).set(novasCores).where(eq(tenants.id, tenant.id));
+    successMsg = 'Cores atualizadas!';
+    Object.assign(conf, novasCores);
+  }
+
+  if (acao === 'restaurar_cores') {
+    await db.update(tenants).set({ ...DEFAULTS, updated_at: new Date() }).where(eq(tenants.id, tenant.id));
+    successMsg = 'Cores restauradas para o padrão!';
+    Object.assign(conf, DEFAULTS);
+  }
+
+}
+---
+
+<AdminLayout title="Configurações" breadcrumb="Dashboard / Configurações">
+  {successMsg && (
+    <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1.25rem;color:#166534;font-weight:500;font-size:0.875rem;">
+      ✓ {successMsg}
+    </div>
+  )}
+
+  <!-- ═══ DADOS DA EMPRESA ═══ -->
+  <form method="POST">
+    <input type="hidden" name="acao" value="salvar" />
+    <div class="grid-2" style="gap:1.5rem;align-items:start;margin-bottom:2rem;">
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Empresa</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Nome da empresa</label>
+              <input name="nome_empresa" class="form-input" value={conf.nome_empresa} placeholder="Minha Imobiliária" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">CRECI</label>
+              <input name="creci" class="form-input" value={conf.creci} placeholder="CRECI-SP 00000" />
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Contato</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">WhatsApp (com DDD, sem máscara)</label>
+              <input name="whatsapp" class="form-input" value={conf.whatsapp} placeholder="11999999999" type="tel" />
+              <span class="form-hint">Ex: 11999999999 (usado no botão de contato)</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">E-mail</label>
+              <input name="email" class="form-input" value={conf.email} placeholder="contato@minhaImob.com.br" type="email" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Redes Sociais</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Instagram (URL completa)</label>
+              <input name="instagram" class="form-input" value={conf.instagram} placeholder="https://instagram.com/minhaImob" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Facebook (URL completa)</label>
+              <input name="facebook" class="form-input" value={conf.facebook} placeholder="https://facebook.com/minhaImob" />
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Endereço e Horário</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Endereço</label>
+              <input name="endereco" class="form-input" value={conf.endereco} placeholder="Rua das Flores, 123 — São Paulo, SP" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Horário de atendimento</label>
+              <input name="horario" class="form-input" value={conf.horario} placeholder="Seg–Sex: 9h às 18h | Sáb: 9h às 13h" />
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar Configurações
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- ═══ IDENTIDADE VISUAL ═══ -->
+  <div style="margin-bottom:0.75rem;padding-top:0.5rem;border-top:1px solid var(--border);">
+    <h2 style="font-size:1.125rem;font-weight:700;color:var(--text);margin-top:1rem;">🎨 Identidade Visual</h2>
+    <p style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem;">Personalize as cores, logo e favicon do site público</p>
+  </div>
+
+  <div class="grid-2" style="gap:1.5rem;align-items:start;margin-bottom:2rem;">
+    <!-- CORES -->
+    <form method="POST">
+      <input type="hidden" name="acao" value="salvar_cores" />
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-header"><span class="card-title">Cores do Site</span></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Cor Primária</label>
+              <div style="display:flex;gap:0.5rem;align-items:center;">
+                <input name="cor_primaria" type="color" value={conf.cor_primaria} id="cp-primary" style="width:48px;height:38px;border:none;cursor:pointer;border-radius:6px;" />
+                <input type="text" class="form-input" value={conf.cor_primaria} id="cp-primary-hex" style="flex:1;font-family:monospace;font-size:0.82rem;" readonly />
+              </div>
+              <span class="form-hint">Botões, links e destaques</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cor Primária Escura</label>
+              <div style="display:flex;gap:0.5rem;align-items:center;">
+                <input name="cor_primaria_dark" type="color" value={conf.cor_primaria_dark} id="cp-dark" style="width:48px;height:38px;border:none;cursor:pointer;border-radius:6px;" />
+                <input type="text" class="form-input" value={conf.cor_primaria_dark} id="cp-dark-hex" style="flex:1;font-family:monospace;font-size:0.82rem;" readonly />
+              </div>
+              <span class="form-hint">Hover dos botões</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Fundo Escuro</label>
+              <div style="display:flex;gap:0.5rem;align-items:center;">
+                <input name="cor_escura" type="color" value={conf.cor_escura} id="cp-bg" style="width:48px;height:38px;border:none;cursor:pointer;border-radius:6px;" />
+                <span id="cp-bg-hex" style="font-family:monospace;font-size:0.75rem;color:var(--muted);">{conf.cor_escura}</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Texto</label>
+              <div style="display:flex;gap:0.5rem;align-items:center;">
+                <input name="cor_texto" type="color" value={conf.cor_texto} id="cp-text" style="width:48px;height:38px;border:none;cursor:pointer;border-radius:6px;" />
+                <span id="cp-text-hex" style="font-family:monospace;font-size:0.75rem;color:var(--muted);">{conf.cor_texto}</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Texto Muted</label>
+              <div style="display:flex;gap:0.5rem;align-items:center;">
+                <input name="cor_muted" type="color" value={conf.cor_muted} id="cp-muted" style="width:48px;height:38px;border:none;cursor:pointer;border-radius:6px;" />
+                <span id="cp-muted-hex" style="font-family:monospace;font-size:0.75rem;color:var(--muted);">{conf.cor_muted}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mini preview -->
+          <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:0.5rem;">
+            <div id="prev-header" style={`background:${conf.cor_escura};padding:0.75rem 1rem;display:flex;align-items:center;justify-content:space-between;`}>
+              <span style="color:white;font-weight:700;font-size:0.82rem;">Preview do site</span>
+              <div style="display:flex;gap:0.5rem;">
+                <span id="prev-link" style={`color:${conf.cor_primaria};font-size:0.75rem;font-weight:600;`}>Link</span>
+                <span style="color:rgba(255,255,255,0.6);font-size:0.75rem;">Menu</span>
+              </div>
+            </div>
+            <div style="padding:1rem;background:white;">
+              <p id="prev-text" style={`color:${conf.cor_texto};font-size:0.82rem;margin-bottom:0.75rem;`}>Texto principal do site com esta cor.</p>
+              <p id="prev-muted" style={`color:${conf.cor_muted};font-size:0.75rem;margin-bottom:0.75rem;`}>Texto secundário / muted.</p>
+              <div style="display:flex;gap:0.5rem;">
+                <span id="prev-btn" style={`background:${conf.cor_primaria};color:white;padding:0.4rem 1rem;border-radius:6px;font-size:0.78rem;font-weight:700;`}>Botão Primário</span>
+                <span id="prev-btn2" style={`border:2px solid ${conf.cor_primaria};color:${conf.cor_primaria};padding:0.4rem 1rem;border-radius:6px;font-size:0.78rem;font-weight:700;`}>Botão Outline</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:0.75rem;">
+        <button type="submit" class="btn btn-primary" style="flex:1;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar Cores
+        </button>
+        <button type="submit" name="acao" value="restaurar_cores" class="btn btn-outline" style="border-color:var(--border);color:var(--muted);">Restaurar Padrão</button>
+      </div>
+    </form>
+
+    <!-- LOGO + FAVICON -->
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+      <!-- Logo -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Logo</span></div>
+        <div class="card-body">
+          <div id="logo-preview" style="background:var(--bg-alt);border-radius:10px;padding:1.5rem;text-align:center;margin-bottom:1rem;min-height:80px;display:flex;align-items:center;justify-content:center;">
+            {conf.logo_url ? (
+              <img src={conf.logo_url} alt="Logo atual" style="max-height:60px;max-width:200px;" />
+            ) : (
+              <span style="color:var(--muted);font-size:0.82rem;">Nenhuma logo enviada (usando SVG padrão)</span>
+            )}
+          </div>
+          <div>
+            <input type="file" id="logo-input" accept=".png,.svg,.webp,.jpg,.jpeg" style="display:none;" />
+            <div style="text-align:center;padding:1.25rem;border:2px dashed var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s;" onclick="document.getElementById('logo-input').click()">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto .5rem;color:var(--muted);display:block;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div style="font-size:0.82rem;font-weight:600;color:var(--text);">Clique para enviar logo</div>
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:0.25rem;">PNG, SVG ou WEBP · máx. 500KB</div>
+              <div style="font-size:0.72rem;color:var(--primary);margin-top:0.15rem;font-weight:600;">📐 Recomendado: 300 × 80 px</div>
+            </div>
+          </div>
+          <div id="logo-status" style="margin-top:0.5rem;font-size:0.8rem;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Favicon -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Favicon</span></div>
+        <div class="card-body">
+          <div id="fav-preview" style="background:var(--bg-alt);border-radius:10px;padding:1rem;display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+            <div style="width:40px;height:40px;border-radius:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;background:white;">
+              {conf.favicon_url ? (
+                <img src={conf.favicon_url} alt="Favicon" style="width:24px;height:24px;" />
+              ) : (
+                <span style="font-size:0.7rem;color:var(--muted);">—</span>
+              )}
+            </div>
+            <div>
+              <div style="font-size:0.82rem;font-weight:600;">{conf.favicon_url ? 'Favicon personalizado' : 'Favicon padrão'}</div>
+              <div style="font-size:0.72rem;color:var(--muted);">{conf.favicon_url ?? '/favicon.svg'}</div>
+            </div>
+          </div>
+          <div>
+            <input type="file" id="fav-input" accept=".png,.ico,.svg" style="display:none;" />
+            <div style="text-align:center;padding:1rem;border:2px dashed var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s;" onclick="document.getElementById('fav-input').click()">
+              <div style="font-size:0.82rem;font-weight:600;color:var(--text);">📌 Enviar favicon</div>
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:0.15rem;">PNG, ICO ou SVG · máx. 200KB</div>
+              <div style="font-size:0.72rem;color:var(--primary);margin-top:0.15rem;font-weight:600;">📐 Recomendado: 64 × 64 px</div>
+            </div>
+          </div>
+          <div id="fav-status" style="margin-top:0.5rem;font-size:0.8rem;display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</AdminLayout>
+
+<script>
+  // ── Color picker → preview em tempo real ──
+  const pairs = [
+    { picker: 'cp-primary', hex: 'cp-primary-hex' },
+    { picker: 'cp-dark',    hex: 'cp-dark-hex' },
+    { picker: 'cp-bg',      hex: 'cp-bg-hex' },
+    { picker: 'cp-text',    hex: 'cp-text-hex' },
+    { picker: 'cp-muted',   hex: 'cp-muted-hex' },
+  ];
+
+  pairs.forEach(({ picker, hex }) => {
+    const p = document.getElementById(picker) as HTMLInputElement;
+    const h = document.getElementById(hex);
+    if (p && h) {
+      p.addEventListener('input', () => {
+        if (h.tagName === 'INPUT') (h as HTMLInputElement).value = p.value;
+        else h.textContent = p.value;
+        updatePreview();
+      });
+    }
+  });
+
+  function updatePreview() {
+    const primary = (document.getElementById('cp-primary') as HTMLInputElement)?.value;
+    const bg      = (document.getElementById('cp-bg') as HTMLInputElement)?.value;
+    const text    = (document.getElementById('cp-text') as HTMLInputElement)?.value;
+    const muted   = (document.getElementById('cp-muted') as HTMLInputElement)?.value;
+
+    const header = document.getElementById('prev-header');
+    const link   = document.getElementById('prev-link');
+    const txt    = document.getElementById('prev-text');
+    const mut    = document.getElementById('prev-muted');
+    const btn    = document.getElementById('prev-btn');
+    const btn2   = document.getElementById('prev-btn2');
+
+    if (header) header.style.background = bg;
+    if (link)   link.style.color = primary;
+    if (txt)    txt.style.color = text;
+    if (mut)    mut.style.color = muted;
+    if (btn)    btn.style.background = primary;
+    if (btn2)   { btn2.style.borderColor = primary; btn2.style.color = primary; }
+  }
+
+  // ── Upload de logo/favicon via API ──
+  async function uploadFile(tipo: string, file: File, statusId: string) {
+    const status = document.getElementById(statusId)!;
+    status.style.display = 'block';
+    status.style.color = '#2563eb';
+    status.textContent = '⏳ Enviando...';
+
+    const fd = new FormData();
+    fd.append('tipo', tipo);
+    fd.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.url) {
+        status.style.color = '#166534';
+        status.textContent = `✓ ${tipo === 'logo' ? 'Logo' : 'Favicon'} enviado! Salvando...`;
+        // Save URL via PATCH
+        await fetch('/api/tenant/update-brand', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo, url: data.url }),
+        });
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        status.style.color = '#991b1b';
+        status.textContent = `✕ ${data.error ?? 'Erro ao enviar'}`;
+      }
+    } catch {
+      status.style.color = '#991b1b';
+      status.textContent = '✕ Erro na conexão.';
+    }
+  }
+
+  document.getElementById('logo-input')?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) uploadFile('logo', file, 'logo-status');
+  });
+
+  document.getElementById('fav-input')?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) uploadFile('favicon', file, 'fav-status');
+  });
+</script>

@@ -1,0 +1,330 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import SiteHeader from '../components/site/SiteHeader.astro';
+import SiteFooter from '../components/site/SiteFooter.astro';
+import { db } from '../lib/db';
+import { leads } from '../lib/schema';
+
+const tenant = (Astro.locals as any).tenant;
+if (!tenant) return Astro.redirect('/');
+
+const nome = tenant.nome_empresa ?? 'Imobiliária';
+
+let leadSent = false;
+let leadError = false;
+if (Astro.request.method === 'POST') {
+  try {
+    const f = await Astro.request.formData();
+    if (f.get('nome')) {
+      await db.insert(leads).values({
+        tenant_id: tenant.id,
+        nome: f.get('nome')!.toString(),
+        whatsapp: f.get('whatsapp')?.toString(),
+        email: f.get('email')?.toString(),
+        mensagem: [
+          `Tipo: ${f.get('negociacao')} | Imóvel: ${f.get('tipo_imovel')} - ${f.get('subtipo')}`,
+          `Local: ${[f.get('bairro'), f.get('cidade'), f.get('uf')].filter(Boolean).join(', ')}`,
+          `Valor: R$ ${f.get('valor')} | Cond: R$ ${f.get('condominio')}/mês | IPTU: R$ ${f.get('iptu')}/ano`,
+          f.get('descricao') ? `\nDescrição: ${f.get('descricao')}` : ''
+        ].filter(Boolean).join('\n'),
+        origem: 'negocie',
+        status: 'novo',
+      });
+      leadSent = true;
+    }
+  } catch { leadError = true; }
+}
+---
+
+<SiteLayout title={`Negocie seu Imóvel — ${nome}`} description="Quer vender ou alugar seu imóvel? Preencha o formulário e entraremos em contato com as melhores condições." tenant={tenant}>
+  <SiteHeader tenant={tenant} currentPath="/negocie" />
+
+  <main style="padding-top:76px;">
+
+    <!-- Hero -->
+    <div class="page-hero">
+      <div class="container">
+        <span class="section-label">ANUNCIE COM A GENTE</span>
+        <h1 class="section-title">Negocie seu <span>Imóvel</span></h1>
+        <p class="section-desc">Venda ou alugue com quem entende do mercado. Preencha os dados abaixo e nossa equipe entrará em contato em até 2 horas úteis.</p>
+      </div>
+    </div>
+
+    <!-- Formulário -->
+    <div class="container negocie-wrap">
+
+      {leadSent && (
+        <div class="alert-success" id="alert-sucesso">
+          ✅ <strong>Solicitação enviada com sucesso!</strong> Nossa equipe entrará em contato em breve.
+        </div>
+      )}
+      {leadError && (
+        <div class="alert-error">
+          ❌ Erro ao enviar. Tente novamente ou nos contate pelo WhatsApp.
+        </div>
+      )}
+
+      <form method="POST" id="negocie-form" class="negocie-form" novalidate>
+
+        <!-- ① SEUS DADOS -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <span class="step-num">1</span>
+            Seus dados
+          </div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-label" for="neg-nome">Nome completo *</label>
+              <input type="text" id="neg-nome" name="nome" class="form-input" placeholder="Seu nome completo" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="neg-whatsapp">WhatsApp *</label>
+              <input type="tel" id="neg-whatsapp" name="whatsapp" class="form-input" placeholder="(11) 9 9999-9999" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="neg-email">E-mail</label>
+              <input type="email" id="neg-email" name="email" class="form-input" placeholder="seu@email.com" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ② TIPO DE NEGOCIAÇÃO -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <span class="step-num">2</span>
+            Você gostaria de:
+          </div>
+          <div class="toggle-group" id="toggle-negociacao" style="margin-bottom:1.25rem;">
+            <button type="button" class="toggle-btn active" data-value="venda" id="btn-venda">🏷 Vender</button>
+            <button type="button" class="toggle-btn" data-value="aluguel" id="btn-alugar">🔑 Alugar</button>
+          </div>
+          <input type="hidden" name="negociacao" id="input-negociacao" value="venda" />
+
+          <div class="form-section-title" style="font-size:.875rem;margin-bottom:.75rem;">Seu imóvel é:</div>
+          <div class="form-grid-2-auto">
+            <div>
+              <div class="toggle-group" id="toggle-tipo">
+                <button type="button" class="toggle-btn active" data-value="residencial">🏠 Residencial</button>
+                <button type="button" class="toggle-btn" data-value="comercial">🏢 Comercial</button>
+              </div>
+              <input type="hidden" name="tipo_imovel" id="input-tipo" value="residencial" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="neg-subtipo">Tipo do imóvel</label>
+              <select id="neg-subtipo" name="subtipo" class="form-select">
+                <option value="">Selecione...</option>
+                <optgroup label="Residencial" id="opts-residencial">
+                  <option value="Casa">Casa</option>
+                  <option value="Apartamento">Apartamento</option>
+                  <option value="Cobertura">Cobertura</option>
+                  <option value="Sobrado">Sobrado</option>
+                  <option value="Terreno residencial">Terreno Residencial</option>
+                </optgroup>
+                <optgroup label="Comercial" id="opts-comercial" style="display:none;">
+                  <option value="Sala Comercial">Sala Comercial</option>
+                  <option value="Loja">Loja</option>
+                  <option value="Galpão">Galpão / Barracão</option>
+                  <option value="Prédio Comercial">Prédio Comercial</option>
+                  <option value="Terreno comercial">Terreno Comercial</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ LOCALIZAÇÃO -->
+        <div class="form-section">
+          <div class="form-section-title"><span class="step-num">3</span> Onde fica o imóvel?</div>
+          <div class="form-grid-cep" style="margin-bottom:1rem;">
+            <div class="form-group">
+              <label class="form-label" for="neg-cep">CEP</label>
+              <div style="display:flex;gap:.5rem;">
+                <input type="text" id="neg-cep" name="cep" class="form-input" placeholder="00000-000" maxlength="9" />
+                <button type="button" class="btn-buscar-cep" id="btn-buscar-cep">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  Buscar
+                </button>
+              </div>
+              <p id="cep-erro" style="display:none;font-size:.78rem;color:#ef4444;margin-top:.25rem;">CEP não encontrado.</p>
+            </div>
+          </div>
+          <div class="form-grid-end">
+            <div class="form-group"><label class="form-label" for="neg-uf">UF</label><input type="text" id="neg-uf" name="uf" class="form-input" placeholder="SP" maxlength="2" /></div>
+            <div class="form-group" style="grid-column:span 2;"><label class="form-label" for="neg-cidade">Cidade</label><input type="text" id="neg-cidade" name="cidade" class="form-input" placeholder="São Paulo" /></div>
+            <div class="form-group" style="grid-column:span 3;"><label class="form-label" for="neg-bairro">Bairro</label><input type="text" id="neg-bairro" name="bairro" class="form-input" /></div>
+            <div class="form-group" style="grid-column:span 4;"><label class="form-label" for="neg-endereco">Endereço</label><input type="text" id="neg-endereco" name="endereco" class="form-input" /></div>
+            <div class="form-group"><label class="form-label" for="neg-numero">Número</label><input type="text" id="neg-numero" name="numero" class="form-input" /></div>
+            <div class="form-group" style="grid-column:span 2;"><label class="form-label" for="neg-comp">Complemento</label><input type="text" id="neg-comp" name="complemento" class="form-input" placeholder="Apto 42" /></div>
+          </div>
+        </div>
+
+        <!-- ④ DADOS FINANCEIROS -->
+        <div class="form-section">
+          <div class="form-section-title"><span class="step-num">4</span> Dados financeiros</div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-label" for="neg-valor" id="label-valor">Valor de venda (R$)</label>
+              <input type="number" id="neg-valor" name="valor" class="form-input" placeholder="0" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="neg-cond">Condomínio (R$/mês)</label>
+              <input type="number" id="neg-cond" name="condominio" class="form-input" placeholder="0" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="neg-iptu">IPTU (R$/ano)</label>
+              <input type="number" id="neg-iptu" name="iptu" class="form-input" placeholder="0" min="0" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ⑤ DESCRIÇÃO -->
+        <div class="form-section">
+          <div class="form-section-title"><span class="step-num">5</span> Descreva seu imóvel</div>
+          <div class="form-group">
+            <label class="form-label" for="neg-desc">Descrição</label>
+            <textarea id="neg-desc" name="descricao" class="form-textarea" rows={5} placeholder="Informe dados para valorizar o anúncio: situação do imóvel, pontos fortes do bairro, ventilação, iluminação..."></textarea>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="form-section form-section-submit">
+          <div class="checkboxes">
+            <label class="check-label">
+              <input type="checkbox" id="check-inter" required />
+              <span>Autorizo a <strong>intermediação</strong> deste imóvel de minha propriedade.</span>
+            </label>
+            <label class="check-label">
+              <input type="checkbox" id="check-priv" required />
+              <span>Concordo com a Política de Privacidade.</span>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg" id="negocie-submit" style="width:100%;justify-content:center;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Enviar solicitação
+          </button>
+          <p id="neg-feedback" style="text-align:center;font-size:.875rem;min-height:1.25rem;"></p>
+        </div>
+
+      </form>
+    </div>
+  </main>
+
+  <SiteFooter tenant={tenant} />
+</SiteLayout>
+
+<script>
+  // Toggles
+  function setupToggle(groupId: string, hiddenId: string, onChange?: (v: string) => void) {
+    const group = document.getElementById(groupId);
+    if (!group) return;
+    group.querySelectorAll<HTMLButtonElement>('.toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        group.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        (document.getElementById(hiddenId) as HTMLInputElement).value = btn.dataset.value!;
+        onChange?.(btn.dataset.value!);
+      });
+    });
+  }
+
+  setupToggle('toggle-negociacao', 'input-negociacao', val => {
+    const el = document.getElementById('label-valor');
+    if (el) el.textContent = val === 'venda' ? 'Valor de venda (R$)' : 'Valor do aluguel (R$/mês)';
+  });
+
+  setupToggle('toggle-tipo', 'input-tipo', val => {
+    const r = document.getElementById('opts-residencial') as HTMLElement;
+    const c = document.getElementById('opts-comercial') as HTMLElement;
+    if (r) r.style.display = val === 'residencial' ? '' : 'none';
+    if (c) c.style.display = val === 'comercial' ? '' : 'none';
+    (document.getElementById('neg-subtipo') as HTMLSelectElement).value = '';
+  });
+
+  // CEP mask
+  const cepInput = document.getElementById('neg-cep') as HTMLInputElement;
+  cepInput?.addEventListener('input', () => {
+    let v = cepInput.value.replace(/\D/g,'').slice(0,8);
+    cepInput.value = v.length > 5 ? v.slice(0,5) + '-' + v.slice(5) : v;
+  });
+
+  // Busca CEP
+  document.getElementById('btn-buscar-cep')?.addEventListener('click', async () => {
+    const cep = cepInput.value.replace(/\D/g,'');
+    const erroEl = document.getElementById('cep-erro') as HTMLElement;
+    const btn = document.getElementById('btn-buscar-cep') as HTMLButtonElement;
+    erroEl.style.display = 'none';
+    if (cep.length !== 8) { erroEl.style.display='block'; erroEl.textContent='Digite um CEP válido.'; return; }
+    btn.disabled = true; btn.textContent = 'Buscando...';
+    try {
+      const data = await fetch(`https://viacep.com.br/ws/${cep}/json/`).then(r => r.json());
+      if (data.erro) { erroEl.style.display='block'; erroEl.textContent='CEP não encontrado.'; return; }
+      (document.getElementById('neg-uf') as HTMLInputElement).value = data.uf ?? '';
+      (document.getElementById('neg-cidade') as HTMLInputElement).value = data.localidade ?? '';
+      (document.getElementById('neg-bairro') as HTMLInputElement).value = data.bairro ?? '';
+      (document.getElementById('neg-endereco') as HTMLInputElement).value = data.logradouro ?? '';
+      document.getElementById('neg-numero')?.focus();
+    } catch { erroEl.style.display='block'; erroEl.textContent='Erro ao consultar CEP.'; }
+    finally { btn.disabled=false; btn.textContent='Buscar'; }
+  });
+
+  // Validação cliente
+  document.getElementById('negocie-form')?.addEventListener('submit', (e) => {
+    const nome = (document.getElementById('neg-nome') as HTMLInputElement).value.trim();
+    const wa   = (document.getElementById('neg-whatsapp') as HTMLInputElement).value.trim();
+    const c1   = (document.getElementById('check-inter') as HTMLInputElement).checked;
+    const c2   = (document.getElementById('check-priv') as HTMLInputElement).checked;
+    const fb   = document.getElementById('neg-feedback') as HTMLElement;
+    if (!nome || !wa) { e.preventDefault(); fb.textContent='⚠ Preencha nome e WhatsApp.'; fb.style.color='#ea580c'; return; }
+    if (!c1 || !c2)  { e.preventDefault(); fb.textContent='⚠ Aceite os termos para continuar.'; fb.style.color='#ea580c'; return; }
+  });
+</script>
+
+<style>
+  /* Hero */
+  .page-hero { background: linear-gradient(135deg, var(--color-bg-alt) 0%, #eff6ff 100%); padding: 3rem 0 2.5rem; border-bottom: 1px solid var(--color-border); margin-bottom: 2.5rem; text-align: center; }
+
+  .negocie-wrap { max-width: 820px; margin: 0 auto; padding-bottom: 5rem; }
+  .negocie-form { display: flex; flex-direction: column; gap: 0; }
+
+  .alert-success { background: #f0fdf4; border: 1.5px solid #86efac; color: #15803d; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; font-size: .9rem; }
+  .alert-error   { background: #fef2f2; border: 1.5px solid #fca5a5; color: #dc2626; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; font-size: .9rem; }
+
+  .form-section { background: white; border: 1px solid var(--color-border); border-radius: 16px; padding: 1.75rem; margin-bottom: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+  .form-section-title { display: flex; align-items: center; gap: .75rem; font-size: 1rem; font-weight: 700; color: var(--color-text); margin-bottom: 1.25rem; }
+  .step-num { width: 28px; height: 28px; background: var(--color-primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 800; flex-shrink: 0; }
+
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  .form-grid-2-auto { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 1.25rem; }
+  .form-grid-end { display: grid; grid-template-columns: 60px 1fr 1fr 1fr 80px 1fr 1fr; gap: .875rem; align-items: end; }
+  .form-grid-cep { max-width: 280px; }
+
+  .form-group { display: flex; flex-direction: column; }
+  .form-label { font-size: .8rem; font-weight: 600; color: var(--color-text); margin-bottom: .375rem; }
+
+  .toggle-group { display: inline-flex; border: 1.5px solid var(--color-border); border-radius: 8px; overflow: hidden; }
+  .toggle-btn { padding: .55rem 1.25rem; font-size: .875rem; font-weight: 600; border: none; background: white; color: var(--color-muted); cursor: pointer; transition: all .15s; font-family: var(--font-family); }
+  .toggle-btn + .toggle-btn { border-left: 1.5px solid var(--color-border); }
+  .toggle-btn:hover { background: var(--color-bg-alt); color: var(--color-text); }
+  .toggle-btn.active { background: var(--color-primary); color: white; }
+
+  .btn-buscar-cep { display: inline-flex; align-items: center; gap: .4rem; padding: .65rem 1rem; background: var(--color-primary); color: white; border: none; border-radius: var(--radius); font-size: .8rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .18s; flex-shrink: 0; font-family: var(--font-family); }
+  .btn-buscar-cep:hover { background: var(--color-primary-dark); }
+  .btn-buscar-cep:disabled { opacity: .6; cursor: not-allowed; }
+
+  .form-section-submit { display: flex; flex-direction: column; gap: 1.25rem; }
+  .checkboxes { display: flex; flex-direction: column; gap: .75rem; }
+  .check-label { display: flex; align-items: flex-start; gap: .625rem; font-size: .875rem; cursor: pointer; }
+  .check-label input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: var(--color-primary); cursor: pointer; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin .8s linear infinite; }
+
+  @media (max-width: 768px) {
+    .form-grid-3 { grid-template-columns: 1fr; }
+    .form-grid-2-auto { grid-template-columns: 1fr; }
+    .form-grid-end { grid-template-columns: 1fr 1fr; }
+    .form-grid-end > * { grid-column: span 1 !important; }
+    .form-grid-cep { max-width: 100%; }
+    .form-section { padding: 1.25rem; }
+  }
+</style>

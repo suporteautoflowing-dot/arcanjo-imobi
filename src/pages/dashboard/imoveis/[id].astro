@@ -1,0 +1,376 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../../lib/auth';
+import { db } from '../../../lib/db';
+import { imoveis } from '../../../lib/schema';
+import { eq, and } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+const id = Astro.params.id;
+if (!id) return Astro.redirect('/dashboard/imoveis');
+
+const [imovel] = await db.select().from(imoveis).where(eq(imoveis.id, id)).limit(1);
+
+if (!imovel) {
+  return Astro.redirect('/dashboard/imoveis');
+}
+
+let error = '';
+let success = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const titulo = formData.get('titulo')?.toString();
+  const tipo = formData.get('tipo')?.toString();
+  const precoStr = formData.get('preco')?.toString();
+  const status = formData.get('status')?.toString();
+  const capa = formData.get('capa')?.toString() || '';
+  const galeriaStr = formData.get('galeria')?.toString() || '[]';
+  
+  if (!titulo || !tipo || !precoStr || !status) {
+    error = 'Preencha os campos obrigatórios.';
+  } else {
+    try {
+      const precoNumber = precoStr.replace(/\./g, '').replace(',', '.');
+
+      await db.update(imoveis).set({
+        titulo,
+        tipo,
+        status,
+        preco: precoNumber,
+        categoria: formData.get('categoria')?.toString(),
+        area: parseInt(formData.get('area')?.toString() || '0', 10),
+        quartos: parseInt(formData.get('quartos')?.toString() || '0', 10),
+        banheiros: parseInt(formData.get('banheiros')?.toString() || '0', 10),
+        vagas: parseInt(formData.get('vagas')?.toString() || '0', 10),
+        bairro: formData.get('bairro')?.toString(),
+        cidade: formData.get('cidade')?.toString(),
+        estado: formData.get('estado')?.toString(),
+        descricao: formData.get('descricao')?.toString(),
+        capa: capa,
+        galeria: JSON.parse(galeriaStr),
+        destaque: formData.get('destaque') === 'on',
+        updated_at: new Date(),
+      }).where(eq(imoveis.id, id));
+      
+      success = 'Imóvel atualizado com sucesso!';
+      
+      // Update local object to reflect changes immediately
+      imovel.titulo = titulo;
+      imovel.tipo = tipo;
+      imovel.status = status;
+      imovel.preco = precoNumber;
+      imovel.categoria = formData.get('categoria')?.toString();
+      imovel.area = parseInt(formData.get('area')?.toString() || '0', 10);
+      imovel.quartos = parseInt(formData.get('quartos')?.toString() || '0', 10);
+      imovel.banheiros = parseInt(formData.get('banheiros')?.toString() || '0', 10);
+      imovel.vagas = parseInt(formData.get('vagas')?.toString() || '0', 10);
+      imovel.bairro = formData.get('bairro')?.toString();
+      imovel.cidade = formData.get('cidade')?.toString();
+      imovel.estado = formData.get('estado')?.toString();
+      imovel.descricao = formData.get('descricao')?.toString();
+      imovel.capa = capa;
+      imovel.galeria = JSON.parse(galeriaStr);
+      imovel.destaque = formData.get('destaque') === 'on';
+
+    } catch (e: any) {
+      error = e.message;
+    }
+  }
+}
+
+// Format price back to Brazilian string for the input
+const precoFormatted = Number(imovel.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+---
+
+<AdminLayout title={`Editar: ${imovel.titulo}`} breadcrumb="Dashboard / Imóveis / Editar">
+  {success && (
+    <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1.25rem;color:#166534;font-weight:500;font-size:0.875rem;">
+      ✓ {success}
+    </div>
+  )}
+  {error && (
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1.25rem;color:#991b1b;font-size:0.875rem;">
+      ✗ {error}
+    </div>
+  )}
+
+  <form method="POST" id="form-imovel">
+    <input type="hidden" name="capa" id="input-capa" value={imovel.capa ?? ''} />
+    <input type="hidden" name="galeria" id="input-galeria" value={JSON.stringify(imovel.galeria ?? [])} />
+
+    <div class="grid-2" style="gap:1.5rem;align-items:start;">
+      <!-- Coluna principal -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        
+        <div class="card">
+          <div class="card-header"><span class="card-title">Informações Básicas</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Título *</label>
+              <input name="titulo" class="form-input" required value={imovel.titulo} />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descrição</label>
+              <textarea name="descricao" class="form-textarea" rows="4">{imovel.descricao}</textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- FOTOS -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Fotos do Imóvel</span>
+          </div>
+          <div class="card-body">
+            <!-- Capa -->
+            <div style="margin-bottom:1.5rem;">
+              <label class="form-label">Imagem de Capa (Principal)</label>
+              <div id="capa-preview" style="background:var(--bg-alt);border-radius:10px;padding:1rem;text-align:center;margin-bottom:1rem;min-height:160px;display:flex;align-items:center;justify-content:center;">
+                {imovel.capa ? (
+                  <img src={imovel.capa} style="max-height:160px;border-radius:6px;object-fit:cover;" />
+                ) : (
+                  <span style="color:var(--muted);font-size:0.875rem;">Nenhuma capa definida</span>
+                )}
+              </div>
+              <input type="file" id="capa-input" accept="image/*" style="display:none;" />
+              <button type="button" class="btn btn-outline" style="width:100%;justify-content:center;" onclick="document.getElementById('capa-input').click()">
+                📸 Alterar Capa
+              </button>
+              <div id="capa-status" style="font-size:0.8rem;margin-top:0.5rem;display:none;"></div>
+            </div>
+
+            <hr style="border:none;border-top:1px solid var(--border);margin:1.5rem 0;" />
+
+            <!-- Galeria -->
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <label class="form-label" style="margin:0;">Galeria de Imagens</label>
+                <input type="file" id="galeria-input" accept="image/*" multiple style="display:none;" />
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('galeria-input').click()">
+                  + Adicionar Fotos
+                </button>
+              </div>
+              
+              <div id="galeria-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(100px, 1fr));gap:0.75rem;">
+                <!-- Rendered via JS -->
+              </div>
+              <div id="galeria-status" style="font-size:0.8rem;margin-top:0.5rem;display:none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">Localização</span></div>
+          <div class="card-body">
+            <div class="form-grid form-grid-3" style="gap:1rem;">
+              <div class="form-group">
+                <label class="form-label">Bairro</label>
+                <input name="bairro" class="form-input" value={imovel.bairro} />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Cidade</label>
+                <input name="cidade" class="form-input" value={imovel.cidade} />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Estado (UF)</label>
+                <input name="estado" class="form-input" maxlength="2" style="text-transform: uppercase;" value={imovel.estado} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coluna lateral -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">Negócio e Preço</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Tipo de negócio *</label>
+              <select name="tipo" class="form-select" required>
+                <option value="venda" selected={imovel.tipo === 'venda'}>Venda</option>
+                <option value="aluguel" selected={imovel.tipo === 'aluguel'}>Aluguel</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Categoria</label>
+              <select name="categoria" class="form-select">
+                <option value="apartamento" selected={imovel.categoria === 'apartamento'}>Apartamento</option>
+                <option value="casa" selected={imovel.categoria === 'casa'}>Casa</option>
+                <option value="terreno" selected={imovel.categoria === 'terreno'}>Terreno</option>
+                <option value="comercial" selected={imovel.categoria === 'comercial'}>Comercial</option>
+                <option value="chacara" selected={imovel.categoria === 'chacara'}>Chácara / Sítio</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Preço (R$) *</label>
+              <input name="preco" type="text" class="form-input" required value={precoFormatted} />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">Características</span></div>
+          <div class="card-body">
+            <div class="form-grid form-grid-2" style="gap:0.875rem;">
+              <div class="form-group">
+                <label class="form-label">Área (m²)</label>
+                <input name="area" type="number" class="form-input" min="0" value={imovel.area} />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Quartos</label>
+                <input name="quartos" type="number" class="form-input" min="0" value={imovel.quartos} />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Banheiros</label>
+                <input name="banheiros" type="number" class="form-input" min="0" value={imovel.banheiros} />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Vagas</label>
+                <input name="vagas" type="number" class="form-input" min="0" value={imovel.vagas} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">Publicação</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select">
+                <option value="disponivel" selected={imovel.status === 'disponivel'}>Disponível</option>
+                <option value="vendido" selected={imovel.status === 'vendido'}>Vendido</option>
+                <option value="alugado" selected={imovel.status === 'alugado'}>Alugado</option>
+                <option value="inativo" selected={imovel.status === 'inativo'}>Inativo (Oculto)</option>
+              </select>
+            </div>
+            <div class="form-toggle">
+              <input type="checkbox" name="destaque" id="destaque" checked={imovel.destaque} />
+              <label for="destaque" class="form-label" style="cursor:pointer;margin:0;">Exibir em destaque na home</label>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:0.75rem;">
+          <a href="/dashboard/imoveis" class="btn btn-outline" style="flex:1;justify-content:center;">Voltar</a>
+          <button type="submit" class="btn btn-primary" style="flex:2;" id="btn-salvar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+</AdminLayout>
+
+<script>
+  // ── Gestão da Capa ──
+  const inputCapa = document.getElementById('input-capa') as HTMLInputElement;
+  const capaPreview = document.getElementById('capa-preview')!;
+  const capaStatus = document.getElementById('capa-status')!;
+
+  document.getElementById('capa-input')?.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    capaStatus.style.display = 'block';
+    capaStatus.style.color = '#2563eb';
+    capaStatus.textContent = '⏳ Enviando capa...';
+
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.url) {
+        inputCapa.value = data.url;
+        capaPreview.innerHTML = `<img src="${data.url}" style="max-height:160px;border-radius:6px;object-fit:cover;" />`;
+        capaStatus.style.color = '#16a34a';
+        capaStatus.textContent = '✓ Capa atualizada! (Não esqueça de salvar o imóvel)';
+      } else {
+        capaStatus.style.color = '#dc2626';
+        capaStatus.textContent = '✕ Erro: ' + data.error;
+      }
+    } catch {
+      capaStatus.style.color = '#dc2626';
+      capaStatus.textContent = '✕ Falha na rede';
+    }
+  });
+
+  // ── Gestão da Galeria ──
+  const inputGaleria = document.getElementById('input-galeria') as HTMLInputElement;
+  const galeriaGrid = document.getElementById('galeria-grid')!;
+  const galeriaStatus = document.getElementById('galeria-status')!;
+  
+  let galeriaUrls: string[] = [];
+  try { galeriaUrls = JSON.parse(inputGaleria.value); } catch { galeriaUrls = []; }
+
+  function renderGaleria() {
+    galeriaGrid.innerHTML = '';
+    if (galeriaUrls.length === 0) {
+      galeriaGrid.innerHTML = '<span style="color:var(--muted);font-size:0.875rem;grid-column:1/-1;">Nenhuma foto na galeria.</span>';
+      return;
+    }
+    galeriaUrls.forEach((url, i) => {
+      const div = document.createElement('div');
+      div.style.position = 'relative';
+      div.style.aspectRatio = '1';
+      div.style.borderRadius = '8px';
+      div.style.overflow = 'hidden';
+      div.style.border = '1px solid var(--border)';
+      div.innerHTML = `
+        <img src="${url}" style="width:100%;height:100%;object-fit:cover;" />
+        <button type="button" data-index="${i}" class="btn-del-foto" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(220,38,38,0.9);color:white;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 4px rgba(0,0,0,0.2);">✕</button>
+      `;
+      galeriaGrid.appendChild(div);
+    });
+    inputGaleria.value = JSON.stringify(galeriaUrls);
+  }
+
+  galeriaGrid.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('btn-del-foto')) {
+      const idx = Number(target.dataset.index);
+      galeriaUrls.splice(idx, 1);
+      renderGaleria();
+    }
+  });
+
+  renderGaleria();
+
+  document.getElementById('galeria-input')?.addEventListener('change', async (e) => {
+    const files = (e.target as HTMLInputElement).files;
+    if (!files || files.length === 0) return;
+
+    galeriaStatus.style.display = 'block';
+    galeriaStatus.style.color = '#2563eb';
+    galeriaStatus.textContent = `⏳ Enviando ${files.length} foto(s)...`;
+
+    let uploads = 0;
+    for (let i = 0; i < files.length; i++) {
+      const fd = new FormData();
+      fd.append('file', files[i]);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.url) {
+          galeriaUrls.push(data.url);
+          uploads++;
+        }
+      } catch (err) {
+        console.error('Upload error', err);
+      }
+    }
+
+    renderGaleria();
+    galeriaStatus.style.color = '#16a34a';
+    galeriaStatus.textContent = `✓ ${uploads} foto(s) adicionada(s)! (Não esqueça de salvar o imóvel)`;
+    (e.target as HTMLInputElement).value = ''; // reset input
+  });
+</script>

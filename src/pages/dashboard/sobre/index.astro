@@ -1,0 +1,275 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../../lib/auth';
+import { db } from '../../../lib/db';
+import { tenants } from '../../../lib/schema';
+import { eq } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+const [tenant] = await db.select().from(tenants).limit(1);
+if (!tenant) return Astro.redirect('/auth/login');
+
+// sobre_json guarda todos os dados da página Sobre
+let dados = {
+  historia_titulo: '',
+  historia_texto_1: '',
+  historia_texto_2: '',
+  historia_citacao: '',
+  historia_citacao_autor: '',
+  missao: '',
+  visao: '',
+  valores: '',
+  equipe: [] as any[],
+  depoimentos: [] as any[],
+  ...((tenant.sobre_json as any) ?? {}),
+};
+
+let successMsg = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const acao = String(form.get('acao') ?? 'salvar');
+
+  if (acao === 'salvar') {
+    dados.historia_titulo        = String(form.get('historia_titulo') ?? '');
+    dados.historia_texto_1       = String(form.get('historia_texto_1') ?? '');
+    dados.historia_texto_2       = String(form.get('historia_texto_2') ?? '');
+    dados.historia_citacao       = String(form.get('historia_citacao') ?? '');
+    dados.historia_citacao_autor = String(form.get('historia_citacao_autor') ?? '');
+    dados.missao  = String(form.get('missao') ?? '');
+    dados.visao   = String(form.get('visao') ?? '');
+    dados.valores = String(form.get('valores') ?? '');
+    await db.update(tenants).set({ sobre_json: dados, updated_at: new Date() });
+    successMsg = 'Dados institucionais atualizados!';
+  }
+
+  if (acao === 'add_membro') {
+    dados.equipe.push({
+      nome:     String(form.get('m_nome') ?? ''),
+      cargo:    String(form.get('m_cargo') ?? ''),
+      creci:    String(form.get('m_creci') ?? ''),
+      whatsapp: String(form.get('m_whatsapp') ?? ''),
+      bio:      String(form.get('m_bio') ?? ''),
+    });
+    await db.update(tenants).set({ sobre_json: dados, updated_at: new Date() });
+    successMsg = 'Membro adicionado!';
+  }
+
+  if (acao === 'remover_membro') {
+    const idx = Number(form.get('idx'));
+    if (!isNaN(idx) && idx >= 0 && idx < dados.equipe.length) {
+      dados.equipe.splice(idx, 1);
+      await db.update(tenants).set({ sobre_json: dados, updated_at: new Date() });
+      successMsg = 'Membro removido.';
+    }
+  }
+
+  if (acao === 'add_depoimento') {
+    dados.depoimentos.push({
+      texto:   String(form.get('d_texto') ?? ''),
+      nome:    String(form.get('d_nome') ?? ''),
+      cidade:  String(form.get('d_cidade') ?? ''),
+      estrelas: Number(form.get('d_estrelas') ?? 5),
+    });
+    await db.update(tenants).set({ sobre_json: dados, updated_at: new Date() });
+    successMsg = 'Depoimento adicionado!';
+  }
+
+  if (acao === 'remover_depoimento') {
+    const idx = Number(form.get('idx'));
+    if (!isNaN(idx) && idx >= 0 && idx < dados.depoimentos.length) {
+      dados.depoimentos.splice(idx, 1);
+      await db.update(tenants).set({ sobre_json: dados, updated_at: new Date() });
+      successMsg = 'Depoimento removido.';
+    }
+  }
+}
+---
+
+<AdminLayout title="Sobre" breadcrumb="Dashboard / Sobre">
+
+  {successMsg && (
+    <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1.25rem;color:#166534;font-weight:500;font-size:0.875rem;">
+      ✓ {successMsg}
+    </div>
+  )}
+
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1>Página Sobre</h1>
+      <p>Gerencie a página institucional da {tenant.nome_empresa}</p>
+    </div>
+  </div>
+
+  <!-- ── HISTÓRIA + MISSÃO ──────────────────────────── -->
+  <form method="POST">
+    <input type="hidden" name="acao" value="salvar" />
+
+    <div class="grid-2" style="gap:1.5rem;align-items:start;margin-bottom:1.5rem;">
+      <!-- Coluna esquerda: História -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Nossa História</span></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+          <div class="form-group">
+            <label class="form-label">Título da seção</label>
+            <input name="historia_titulo" class="form-input" value={dados.historia_titulo} />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Parágrafo 1</label>
+            <textarea name="historia_texto_1" class="form-textarea" rows="3">{dados.historia_texto_1}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Parágrafo 2</label>
+            <textarea name="historia_texto_2" class="form-textarea" rows="3">{dados.historia_texto_2}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Citação em destaque</label>
+            <textarea name="historia_citacao" class="form-textarea" rows="2">{dados.historia_citacao}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Autor da citação</label>
+            <input name="historia_citacao_autor" class="form-input" value={dados.historia_citacao_autor} />
+          </div>
+        </div>
+      </div>
+
+      <!-- Coluna direita: Missão/Visão/Valores -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Missão, Visão e Valores</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:1rem;">
+            <div class="form-group">
+              <label class="form-label">🎯 Missão</label>
+              <textarea name="missao" class="form-textarea" rows="2">{dados.missao}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">🌟 Visão</label>
+              <textarea name="visao" class="form-textarea" rows="2">{dados.visao}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">💎 Valores</label>
+              <textarea name="valores" class="form-textarea" rows="2">{dados.valores}</textarea>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar Informações
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- ── EQUIPE ──────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header" style="justify-content:space-between;">
+      <span class="card-title">Equipe ({dados.equipe.length} membros)</span>
+    </div>
+
+    <div class="table-wrap">
+      {dados.equipe.length === 0 ? (
+        <div style="padding:2rem;text-align:center;color:var(--muted);">Nenhum membro cadastrado.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Cargo</th>
+              <th>CRECI</th>
+              <th>WhatsApp</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dados.equipe.map((m: any, i: number) => (
+              <tr>
+                <td style="font-weight:600;">{m.nome}</td>
+                <td><span class="badge badge-info">{m.cargo}</span></td>
+                <td style="color:var(--muted);font-size:0.82rem;">{m.creci}</td>
+                <td style="font-size:0.82rem;">{m.whatsapp}</td>
+                <td>
+                  <form method="POST" style="display:inline;">
+                    <input type="hidden" name="acao" value="remover_membro" />
+                    <input type="hidden" name="idx" value={String(i)} />
+                    <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:none;" onclick="return confirm('Remover este membro?')">✕</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+
+    <!-- Adicionar membro -->
+    <div style="padding:1.25rem;border-top:1px solid var(--border);">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.75rem;">+ Adicionar membro</div>
+      <form method="POST">
+        <input type="hidden" name="acao" value="add_membro" />
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <input name="m_nome" class="form-input" placeholder="Nome completo" required />
+          <input name="m_cargo" class="form-input" placeholder="Cargo" required />
+          <input name="m_creci" class="form-input" placeholder="CRECI-SP 00000" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <input name="m_whatsapp" class="form-input" placeholder="11999990001" />
+          <input name="m_bio" class="form-input" placeholder="Breve descrição do profissional" />
+        </div>
+        <button type="submit" class="btn btn-success btn-sm">+ Adicionar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── DEPOIMENTOS ────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header" style="justify-content:space-between;">
+      <span class="card-title">Depoimentos ({dados.depoimentos.length})</span>
+    </div>
+
+    <div style="padding:1.25rem;display:flex;flex-direction:column;gap:1rem;">
+      {dados.depoimentos.length === 0 ? (
+        <div style="text-align:center;color:var(--muted);padding:1.5rem;">Nenhum depoimento cadastrado.</div>
+      ) : (
+        dados.depoimentos.map((d: any, i: number) => (
+          <div style="background:var(--bg-alt);border-radius:10px;padding:1rem 1.25rem;position:relative;">
+            <div style="color:#f59e0b;margin-bottom:0.5rem;">{'★'.repeat(d.estrelas)}{'☆'.repeat(5 - d.estrelas)}</div>
+            <p style="font-size:0.875rem;color:var(--text);font-style:italic;margin-bottom:0.75rem;">"{d.texto}"</p>
+            <div style="font-size:0.8rem;">
+              <strong>{d.nome}</strong> — <span style="color:var(--muted);">{d.cidade}</span>
+            </div>
+            <form method="POST" style="position:absolute;top:0.75rem;right:0.75rem;">
+              <input type="hidden" name="acao" value="remover_depoimento" />
+              <input type="hidden" name="idx" value={String(i)} />
+              <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:none;padding:0.2rem 0.5rem;" onclick="return confirm('Remover depoimento?')">✕</button>
+            </form>
+          </div>
+        ))
+      )}
+    </div>
+
+    <!-- Adicionar depoimento -->
+    <div style="padding:1.25rem;border-top:1px solid var(--border);">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.75rem;">+ Adicionar depoimento</div>
+      <form method="POST">
+        <input type="hidden" name="acao" value="add_depoimento" />
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <textarea name="d_texto" class="form-textarea" rows="3" placeholder="Texto do depoimento do cliente..." required></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 100px;gap:0.75rem;margin-bottom:0.75rem;">
+          <input name="d_nome" class="form-input" placeholder="Nome do cliente" required />
+          <input name="d_cidade" class="form-input" placeholder="Bairro, Cidade" required />
+          <select name="d_estrelas" class="form-input">
+            <option value="5">⭐ 5</option>
+            <option value="4">⭐ 4</option>
+            <option value="3">⭐ 3</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-success btn-sm">+ Adicionar</button>
+      </form>
+    </div>
+  </div>
+
+</AdminLayout>

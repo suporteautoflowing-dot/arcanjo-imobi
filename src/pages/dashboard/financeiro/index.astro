@@ -1,0 +1,371 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../../lib/auth';
+import { db } from '../../../lib/db';
+import { transacoes, imoveis } from '../../../lib/schema';
+import { eq, desc, and } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+// Handle POST: nova transação
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const acao = String(form.get('acao') ?? 'nova');
+
+  if (acao === 'nova') {
+    const valor = parseFloat(String(form.get('valor') ?? '0').replace(/\./g,'').replace(',','.'));
+    const comissao_percent = parseFloat(String(form.get('comissao_percent') ?? '5'));
+    await db.insert(transacoes).values({
+      tipo:           String(form.get('tipo') ?? 'venda'),
+      valor:          String(valor),
+      comissao_percent: String(comissao_percent),
+      comissao_valor: String((valor * comissao_percent) / 100),
+      cliente_nome:   String(form.get('cliente_nome') ?? ''),
+      corretor:       String(form.get('corretor') ?? ''),
+      status:         String(form.get('status') ?? 'pendente'),
+      imovel_id:      String(form.get('imovel_id') ?? '') || null,
+      data:           new Date(String(form.get('data') ?? new Date().toISOString().split('T')[0])),
+    });
+    return Astro.redirect('/dashboard/financeiro');
+  }
+
+  if (acao === 'excluir') {
+    await db.delete(transacoes).where(eq(transacoes.id, String(form.get('id') ?? '')));
+    return Astro.redirect('/dashboard/financeiro');
+  }
+}
+
+const all = await db.select().from(transacoes)
+  .orderBy(desc(transacoes.data));
+
+const imoveisList = await db.select({ id: imoveis.id, titulo: imoveis.titulo })
+  .from(imoveis);
+
+const concluidas = all.filter(t => t.status === 'concluida');
+
+const faturamentoTotal = concluidas.reduce((s, t) => s + Number(t.valor), 0);
+const comissoesTotal   = concluidas.reduce((s, t) => s + Number(t.comissao_valor ?? 0), 0);
+const totalVendas      = concluidas.filter(t => t.tipo === 'venda').length;
+const totalAlugueis    = concluidas.filter(t => t.tipo === 'aluguel').length;
+
+// Mês atual
+const mesAtual = new Date().toISOString().slice(0, 7);
+const doMes = concluidas.filter(t => t.data?.toISOString().startsWith(mesAtual));
+const faturamentoMes = doMes.reduce((s, t) => s + Number(t.valor), 0);
+const comissoesMes   = doMes.reduce((s, t) => s + Number(t.comissao_valor ?? 0), 0);
+
+// Gráfico — últimos 6 meses
+function getUltimosMeses(n: number) {
+  const meses = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.toISOString().slice(0, 7);
+    const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+    meses.push({ key, label });
+  }
+  return meses;
+}
+const meses6 = getUltimosMeses(6).map(m => ({
+  label: m.label,
+  vendas:   concluidas.filter(t => t.tipo === 'venda' && t.data?.toISOString().startsWith(m.key)).reduce((s,t) => s + Number(t.valor), 0),
+  alugueis: concluidas.filter(t => t.tipo === 'aluguel' && t.data?.toISOString().startsWith(m.key)).reduce((s,t) => s + Number(t.valor), 0),
+}));
+const maxValor = Math.max(...meses6.map(m => m.vendas + m.alugueis), 1);
+
+const filterPeriod = Astro.url.searchParams.get('periodo') ?? '';
+let transactions = all;
+const now = new Date();
+if (filterPeriod === 'mes_atual') {
+  const currentMonth = now.toISOString().slice(0, 7);
+  transactions = transactions.filter(t => t.data?.toISOString().startsWith(currentMonth));
+} else if (filterPeriod === 'mes_passado') {
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+  transactions = transactions.filter(t => t.data?.toISOString().startsWith(lastMonth));
+} else if (filterPeriod === 'ano_atual') {
+  const currentYear = String(now.getFullYear());
+  transactions = transactions.filter(t => t.data?.toISOString().startsWith(currentYear));
+}
+
+function fmtMoeda(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+}
+function fmtData(d: any) {
+  return new Date(d).toLocaleDateString('pt-BR');
+}
+
+const statusBadge: Record<string, string> = { pendente: 'badge-warning', concluida: 'badge-success', cancelada: 'badge-gray' };
+const statusLabel: Record<string, string> = { pendente: 'Pendente', concluida: 'Concluída', cancelada: 'Cancelada' };
+
+let showForm = Astro.url.searchParams.get('nova') === '1';
+---
+
+<AdminLayout title="Financeiro" breadcrumb="Dashboard / Financeiro">
+
+  <!-- KPIs -->
+  <div class="grid-4" style="margin-bottom:1.5rem;">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#eff6ff;color:#2563eb;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value">{fmtMoeda(faturamentoTotal)}</div>
+        <div class="stat-label">Faturamento total</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#f0fdf4;color:#16a34a;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value" style="color:#16a34a;">{fmtMoeda(comissoesTotal)}</div>
+        <div class="stat-label">Comissões acumuladas</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fdf4ff;color:#9333ea;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value">{totalVendas}</div>
+        <div class="stat-label">Vendas realizadas</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fff7ed;color:#ea580c;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      </div>
+      <div class="stat-info">
+        <div class="stat-value">{totalAlugueis}</div>
+        <div class="stat-label">Aluguéis ativos</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumo do mês + Gráfico -->
+  <div class="grid-2" style="margin-bottom:1.5rem;">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Resumo do Mês Atual</span></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+          <div style="background:#eff6ff;border-radius:12px;padding:1.25rem;text-align:center;">
+            <div style="font-size:0.75rem;color:#2563eb;font-weight:600;margin-bottom:0.25rem;">FATURAMENTO</div>
+            <div style="font-size:1.5rem;font-weight:800;color:#1e3a5f;">{fmtMoeda(faturamentoMes)}</div>
+          </div>
+          <div style="background:#f0fdf4;border-radius:12px;padding:1.25rem;text-align:center;">
+            <div style="font-size:0.75rem;color:#16a34a;font-weight:600;margin-bottom:0.25rem;">COMISSÕES</div>
+            <div style="font-size:1.5rem;font-weight:800;color:#166534;">{fmtMoeda(comissoesMes)}</div>
+          </div>
+        </div>
+        <div style="margin-top:1.25rem;display:flex;gap:0.75rem;">
+          <a href="/dashboard/financeiro?nova=1" class="btn btn-primary" style="flex:1;justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nova Transação
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfico de barras -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Receita Mensal (últimos 6 meses)</span></div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          {meses6.map(m => {
+            const pctVendas = (m.vendas / maxValor) * 100;
+            const pctAlugueis = (m.alugueis / maxValor) * 100;
+            return (
+              <div class="chart-col">
+                <div class="chart-bars">
+                  {pctVendas > 0 && <div class="chart-bar bar-venda" style={`height:${Math.max(pctVendas, 4)}%`} title={`Vendas: ${fmtMoeda(m.vendas)}`}></div>}
+                  {pctAlugueis > 0 && <div class="chart-bar bar-aluguel" style={`height:${Math.max(pctAlugueis, 4)}%`} title={`Aluguéis: ${fmtMoeda(m.alugueis)}`}></div>}
+                  {pctVendas === 0 && pctAlugueis === 0 && <div class="chart-bar bar-empty" style="height:4%"></div>}
+                </div>
+                <span class="chart-label">{m.label}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div class="chart-legend">
+          <span><span class="legend-dot" style="background:#3b82f6;"></span> Vendas</span>
+          <span><span class="legend-dot" style="background:#10b981;"></span> Aluguéis</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulário Nova Transação (collapsable) -->
+  {showForm && (
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header">
+        <span class="card-title">Nova Transação</span>
+        <a href="/dashboard/financeiro" class="btn btn-outline btn-sm">Cancelar</a>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="acao" value="nova" />
+          <div class="grid-2" style="gap:1rem;margin-bottom:1rem;">
+            <div class="form-group">
+              <label class="form-label">Tipo</label>
+              <select name="tipo" class="form-select">
+                <option value="venda">🏷 Venda</option>
+                <option value="aluguel">🔑 Aluguel</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select">
+                <option value="pendente">Pendente</option>
+                <option value="concluida">Concluída</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Valor (R$) *</label>
+              <input name="valor" class="form-input" required placeholder="500.000,00" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Comissão (%)</label>
+              <input name="comissao_percent" type="number" class="form-input" value="5" min="0" max="100" step="0.5" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cliente</label>
+              <input name="cliente_nome" class="form-input" placeholder="Nome do cliente" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Corretor</label>
+              <input name="corretor" class="form-input" placeholder="Nome do corretor" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Imóvel (opcional)</label>
+              <select name="imovel_id" class="form-select">
+                <option value="">— Selecionar imóvel —</option>
+                {imoveisList.map(i => <option value={i.id}>{i.titulo}</option>)}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Data da transação</label>
+              <input name="data" type="date" class="form-input" value={new Date().toISOString().split('T')[0]} />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Salvar Transação
+          </button>
+        </form>
+      </div>
+    </div>
+  )}
+
+  <!-- Transações -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:1rem;">
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+      <span style="font-size:0.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Período:</span>
+      <a href="/dashboard/financeiro" class={`btn btn-sm ${filterPeriod === '' ? 'btn-primary' : 'btn-outline'}`}>Todas</a>
+      <a href="/dashboard/financeiro?periodo=mes_atual" class={`btn btn-sm ${filterPeriod === 'mes_atual' ? 'btn-primary' : 'btn-outline'}`}>Mês Atual</a>
+      <a href="/dashboard/financeiro?periodo=mes_passado" class={`btn btn-sm ${filterPeriod === 'mes_passado' ? 'btn-primary' : 'btn-outline'}`}>Mês Passado</a>
+      <a href="/dashboard/financeiro?periodo=ano_atual" class={`btn btn-sm ${filterPeriod === 'ano_atual' ? 'btn-primary' : 'btn-outline'}`}>Ano Atual</a>
+    </div>
+    <button class="btn btn-outline-dark btn-sm" onclick="exportarCSVFinanceiro()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.35rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exportar CSV
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header" style="justify-content:space-between;">
+      <span class="card-title">Transações {filterPeriod ? 'Filtradas' : 'Totais'} ({transactions.length})</span>
+      <a href="/dashboard/financeiro?nova=1" class="btn btn-primary btn-sm">+ Nova</a>
+    </div>
+    <div class="table-wrap">
+      {transactions.length === 0 ? (
+        <div style="padding:3rem;text-align:center;color:var(--muted);">
+          Nenhuma transação registrada.
+          <br/><a href="/dashboard/financeiro?nova=1" style="color:var(--primary);font-weight:600;">+ Registrar primeira transação</a>
+        </div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Tipo</th>
+              <th>Cliente</th>
+              <th>Valor</th>
+              <th>Comissão</th>
+              <th>Corretor</th>
+              <th>Data</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.map(t => (
+              <tr>
+                <td><span class={`badge ${t.tipo === 'venda' ? 'badge-info' : 'badge-warning'}`}>{t.tipo === 'venda' ? '🏷 Venda' : '🔑 Aluguel'}</span></td>
+                <td style="font-weight:600;">{t.cliente_nome ?? '—'}</td>
+                <td style="font-weight:600;color:var(--primary);">{fmtMoeda(Number(t.valor))}</td>
+                <td style="color:#16a34a;font-weight:600;">{fmtMoeda(Number(t.comissao_valor ?? 0))}</td>
+                <td style="color:var(--muted);font-size:0.82rem;">{t.corretor ?? '—'}</td>
+                <td style="color:var(--muted);font-size:0.82rem;">{t.data ? fmtData(t.data) : '—'}</td>
+                <td><span class={`badge ${statusBadge[t.status] ?? 'badge-gray'}`}>{statusLabel[t.status] ?? t.status}</span></td>
+                <td>
+                  <form method="POST" style="display:inline;" onsubmit="return confirm('Excluir esta transação?')">
+                    <input type="hidden" name="acao" value="excluir" />
+                    <input type="hidden" name="id" value={t.id} />
+                    <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:none;">✕</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </div>
+
+</AdminLayout>
+
+<script define:vars={{ transactionsData: transactions }}>
+  function exportarCSVFinanceiro() {
+    if (transactionsData.length === 0) return alert('Nenhuma transação para exportar.');
+    const headers = ['Data', 'Tipo', 'Status', 'Cliente', 'Corretor', 'Valor (R$)', 'Comissão (R$)'];
+    const linhas = transactionsData.map(t => [
+      t.data ? new Date(t.data).toLocaleDateString('pt-BR') : '',
+      t.tipo === 'venda' ? 'Venda' : 'Aluguel',
+      t.status,
+      t.cliente_nome || '',
+      t.corretor || '',
+      t.valor || 0,
+      t.comissao_valor || 0
+    ]);
+    const csvContent = [
+      headers.join(','),
+      ...linhas.map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(','))
+    ].join('\\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `financeiro_${new Date().getTime()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  window.exportarCSVFinanceiro = exportarCSVFinanceiro;
+</script>
+
+<style>
+  .chart-wrap { display:flex; gap:0.5rem; align-items:flex-end; height:180px; padding:0.5rem 0; }
+  .chart-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:0.5rem; height:100%; }
+  .chart-bars { flex:1; display:flex; align-items:flex-end; gap:3px; width:100%; justify-content:center; }
+  .chart-bar { width:18px; border-radius:4px 4px 0 0; transition:height 0.4s ease; cursor:pointer; min-height:4px; }
+  .chart-bar:hover { filter:brightness(1.15); }
+  .bar-venda { background:#3b82f6; }
+  .bar-aluguel { background:#10b981; }
+  .bar-empty { background:#e2e8f0; width:12px; }
+  .chart-label { font-size:0.7rem; color:var(--muted); font-weight:500; white-space:nowrap; }
+  .chart-legend { display:flex; justify-content:center; gap:1.5rem; margin-top:0.75rem; font-size:0.78rem; color:var(--muted); }
+  .legend-dot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:0.35rem; vertical-align:middle; }
+</style>

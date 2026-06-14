@@ -1,0 +1,78 @@
+---
+interface Props { currentPath: string; tenant: any; }
+const { currentPath, tenant } = Astro.props;
+
+function isActive(path: string) {
+  if (path === '/dashboard') return currentPath === '/dashboard';
+  return currentPath.startsWith(path);
+}
+
+const links = [
+  {
+    group: 'Principal',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
+      { href: '/dashboard/financeiro', label: 'Financeiro', icon: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
+    ]
+  },
+  {
+    group: 'Conteúdo',
+    items: [
+      { href: '/dashboard/imoveis', label: 'Imóveis', icon: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>' },
+      { href: '/dashboard/leads', label: 'Leads', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
+      { href: '/dashboard/banner', label: 'Banner / Hero', icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>' },
+      { href: '/dashboard/sobre', label: 'Sobre', icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>' },
+      { href: '/dashboard/financie', label: 'Financie', icon: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
+    ]
+  },
+  {
+    group: 'Sistema',
+    items: [
+      { href: '/dashboard/configuracoes', label: 'Configurações', icon: '<circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/>' },
+    ]
+  }
+];
+---
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-icon">
+      {tenant.logo_url ? (
+        <img src={tenant.logo_url} alt="Logo" style="width:100%;height:100%;object-fit:contain;border-radius:4px;background:#fff;padding:2px;" />
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      )}
+    </div>
+    <div>
+      <div class="sidebar-logo-text">{tenant.nome_empresa}</div>
+      <div class="sidebar-logo-sub">PAINEL DO CLIENTE</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    {links.map(section => (
+      <>
+        <div class="sidebar-section-label">{section.group}</div>
+        {section.items.map(link => (
+          <a
+            href={link.href}
+            class={`sidebar-link ${isActive(link.href) ? 'active' : ''}`}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" set:html={link.icon} />
+            {link.label}
+          </a>
+        ))}
+      </>
+    ))}
+  </nav>
+
+  <div class="sidebar-footer">
+    <a href="/" target="_blank" class="sidebar-link" style="font-size:0.8rem; color: rgba(255,255,255,0.4);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Ver meu site
+    </a>
+  </div>
+</aside>

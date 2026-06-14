@@ -1,0 +1,307 @@
+---
+import { login, registrar, isFirstAccess } from '../../lib/auth';
+
+const primeiroAcesso = await isFirstAccess();
+let erro = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const acao = String(form.get('acao') ?? 'login');
+
+  if (acao === 'registro') {
+    // ── Cadastro do primeiro admin ──
+    const nome = String(form.get('nome') ?? '');
+    const email = String(form.get('email') ?? '');
+    const password = String(form.get('password') ?? '');
+    const nome_empresa = String(form.get('nome_empresa') ?? '');
+
+    if (!nome || !email || !password || !nome_empresa) {
+      erro = 'Preencha todos os campos.';
+    } else if (password.length < 6) {
+      erro = 'A senha deve ter pelo menos 6 caracteres.';
+    } else {
+      try {
+        const result = await registrar({ nome, email, password, nome_empresa });
+        return new Response(null, {
+          status: 302,
+          headers: {
+            'Set-Cookie': `vitrine_token=${result.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`,
+            'Location': '/dashboard',
+          },
+        });
+      } catch (e: any) {
+        erro = e.message || 'Erro ao criar conta.';
+      }
+    }
+  } else {
+    // ── Login ──
+    const email = String(form.get('email') ?? '');
+    const password = String(form.get('password') ?? '');
+
+    if (!email || !password) {
+      erro = 'Preencha todos os campos.';
+    } else {
+      try {
+        const result = await login(email, password);
+        return new Response(null, {
+          status: 302,
+          headers: {
+            'Set-Cookie': `vitrine_token=${result.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`,
+            'Location': '/dashboard',
+          },
+        });
+      } catch (e: any) {
+        erro = e.message || 'Erro ao fazer login.';
+      }
+    }
+  }
+}
+---
+
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{primeiroAcesso ? 'Configuração Inicial' : 'Entrar'} — Painel Administrativo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background-image: radial-gradient(ellipse at 60% 20%, rgba(13,110,253,0.12) 0%, transparent 60%);
+    }
+
+    .auth-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 2.75rem 2.5rem;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo-icon {
+      width: 52px;
+      height: 52px;
+      background: #0d6efd;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 8px 24px rgba(13,110,253,0.35);
+    }
+
+    .logo-name {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-name span { color: #0d6efd; }
+    .logo-slogan { font-size: 0.78rem; color: #64748b; margin-top: 0.2rem; }
+
+    .badge-setup {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.75rem;
+      border-radius: 99px;
+      margin-bottom: 0.75rem;
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      text-align: center;
+      color: #0f172a;
+      margin-bottom: 0.3rem;
+    }
+
+    .sub {
+      text-align: center;
+      font-size: 0.84rem;
+      color: #64748b;
+      margin-bottom: 1.75rem;
+      line-height: 1.5;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    label {
+      display: block;
+      font-size: 0.81rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.35rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.72rem 0.9rem;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+      color: #1f2937;
+      background: #f8fafc;
+    }
+
+    input:focus {
+      border-color: #0d6efd;
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(13,110,253,0.1);
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+    .btn {
+      width: 100%;
+      padding: 0.8rem;
+      background: #0d6efd;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      font-family: inherit;
+      margin-top: 0.5rem;
+      box-shadow: 0 4px 16px rgba(13,110,253,0.3);
+    }
+
+    .btn:hover {
+      background: #0056b3;
+      box-shadow: 0 6px 20px rgba(13,110,253,0.4);
+    }
+
+    .btn:active { transform: scale(0.98); }
+
+    .erro {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+      padding: 0.7rem 0.9rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #f1f5f9;
+      margin: 1.5rem 0;
+    }
+
+    .info-box {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      font-size: 0.81rem;
+      color: #0369a1;
+      line-height: 1.5;
+      margin-bottom: 1.25rem;
+    }
+
+    .info-box strong { display: block; margin-bottom: 0.2rem; color: #0c4a6e; }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </div>
+      <div class="logo-name">Painel <span>Imobiliário</span></div>
+      <div class="logo-slogan">Gestão completa do seu negócio</div>
+    </div>
+
+    {primeiroAcesso ? (
+      <>
+        <div style="text-align:center;">
+          <span class="badge-setup">Configuração Inicial</span>
+        </div>
+        <h1>Criar conta de administrador</h1>
+        <p class="sub">Bem-vindo! Configure seu painel preenchendo os dados abaixo.</p>
+
+        <div class="info-box">
+          <strong>⚠️ Primeiro acesso</strong>
+          Este formulário só aparece uma vez. Após criar a conta, o acesso será feito somente via login.
+        </div>
+
+        {erro && <div class="erro">{erro}</div>}
+
+        <form method="POST">
+          <input type="hidden" name="acao" value="registro" />
+          <div class="form-group">
+            <label for="nome_empresa">Nome da imobiliária / empresa</label>
+            <input type="text" id="nome_empresa" name="nome_empresa" placeholder="Ex: Silva Imóveis" required autofocus />
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label for="nome">Seu nome</label>
+              <input type="text" id="nome" name="nome" placeholder="João Silva" required />
+            </div>
+            <div class="form-group">
+              <label for="email">E-mail</label>
+              <input type="email" id="email" name="email" placeholder="admin@email.com" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="password">Senha (mín. 6 caracteres)</label>
+            <input type="password" id="password" name="password" minlength="6" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn">Criar conta e acessar o painel</button>
+        </form>
+      </>
+    ) : (
+      <>
+        <h1>Bem-vindo de volta</h1>
+        <p class="sub">Acesse seu painel de gestão imobiliária</p>
+
+        {erro && <div class="erro">{erro}</div>}
+
+        <form method="POST">
+          <input type="hidden" name="acao" value="login" />
+          <div class="form-group">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" name="email" placeholder="seu@email.com" required autofocus />
+          </div>
+          <div class="form-group">
+            <label for="password">Senha</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn">Entrar no painel</button>
+        </form>
+      </>
+    )}
+  </div>
+</body>
+</html>

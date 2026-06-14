@@ -1,0 +1,142 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getAuthFromCookie } from '../../../lib/auth';
+import { db } from '../../../lib/db';
+import { bancos_financiamento } from '../../../lib/schema';
+import { eq, desc } from 'drizzle-orm';
+
+const auth = getAuthFromCookie(Astro.request);
+if (!auth) return Astro.redirect('/auth/login');
+
+let success = '';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const acao = form.get('acao')?.toString();
+
+  if (acao === 'adicionar') {
+    const nome = form.get('nome')?.toString();
+    const logo_url = form.get('logo_url')?.toString();
+    const link = form.get('link')?.toString();
+    
+    if (nome && link) {
+      await db.insert(bancos_financiamento).values({
+        nome,
+        logo_url: logo_url || null,
+        link,
+        ordem: 0
+      });
+      success = 'Banco adicionado com sucesso!';
+    } else {
+      error = 'Nome e link são obrigatórios.';
+    }
+  } else if (acao === 'excluir') {
+    const id = form.get('id')?.toString();
+    if (id) {
+      await db.delete(bancos_financiamento).where(eq(bancos_financiamento.id, id));
+      success = 'Banco removido com sucesso!';
+    }
+  }
+}
+
+const bancos = await db.select().from(bancos_financiamento).orderBy(desc(bancos_financiamento.ordem));
+---
+
+<AdminLayout title="Financiamentos" breadcrumb="Dashboard / Financie">
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1>Bancos e Financiamentos</h1>
+      <p>Gerencie os bancos parceiros e simuladores que aparecem na página /financie</p>
+    </div>
+  </div>
+
+  {success && (
+    <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1.25rem;color:#166534;font-size:0.875rem;">
+      ✓ {success}
+    </div>
+  )}
+  {error && (
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:0.875rem 1rem;margin-bottom:1.25rem;color:#991b1b;font-size:0.875rem;">
+      ✗ {error}
+    </div>
+  )}
+
+  <div class="grid-2" style="gap:1.5rem;align-items:start;">
+    
+    <div class="card">
+      <div class="card-header"><span class="card-title">Adicionar Novo Banco</span></div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="acao" value="adicionar" />
+          
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Nome do Banco *</label>
+            <input type="text" name="nome" class="form-input" placeholder="Ex: Caixa Econômica, Itaú, etc." required />
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Link do Simulador *</label>
+            <input type="url" name="link" class="form-input" placeholder="https://..." required />
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">URL da Logo (Opcional)</label>
+            <input type="text" name="logo_url" class="form-input" placeholder="https://.../logo.png" />
+            <p style="font-size:0.75rem;color:var(--muted);margin-top:0.25rem;">Deixe em branco para exibir as iniciais do nome.</p>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Adicionar Banco</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Bancos Cadastrados ({bancos.length})</span></div>
+      <div class="table-wrap">
+        {bancos.length === 0 ? (
+          <div style="padding:3rem;text-align:center;color:var(--muted);font-size:0.875rem;">
+            Nenhum banco cadastrado.<br/>Os bancos padrão serão exibidos na página pública.
+          </div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Banco</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bancos.map(b => (
+                <tr>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                      {b.logo_url ? (
+                        <img src={b.logo_url} style="width:36px;height:36px;object-fit:contain;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;padding:2px;" />
+                      ) : (
+                        <div style="width:36px;height:36px;background:#e2e8f0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#64748b;">
+                          {b.nome.substring(0,2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <div style="font-weight:600;color:var(--color-text);">{b.nome}</div>
+                        <a href={b.link} target="_blank" style="font-size:0.75rem;color:var(--color-primary);text-decoration:none;">Testar Simulador ↗</a>
+                      </div>
+                    </div>
+                  </td>
+                  <td style="width:100px;">
+                    <form method="POST" onsubmit="return confirm('Excluir este banco permanentemente?')">
+                      <input type="hidden" name="acao" value="excluir" />
+                      <input type="hidden" name="id" value={b.id} />
+                      <button type="submit" class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:none;">Excluir</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  </div>
+</AdminLayout>
