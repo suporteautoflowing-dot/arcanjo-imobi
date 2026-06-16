@@ -92,8 +92,10 @@ if (bancosDB.length > 0) {
             <div class="banco-topo" style={`background:${b.bg};`}>
               <div class="banco-logo-wrap">
                 {b.logo_url ? (
-                  <img src={b.logo_url} alt={b.nome}
-                    style="max-width:130px;max-height:56px;object-fit:contain;filter:brightness(0) invert(1);" />
+                  <div class="banco-logo-placa">
+                    <img src={b.logo_url} alt={b.nome}
+                      style="max-width:120px;max-height:52px;object-fit:contain;display:block;" />
+                  </div>
                 ) : (
                   <div class="banco-sigla">{b.sigla}</div>
                 )}
@@ -240,7 +242,18 @@ if (bancosDB.length > 0) {
     align-items: center;
     justify-content: center;
     width: 100%;
-    padding: 1.5rem;
+    padding: 1.25rem 1.5rem;
+  }
+  .banco-logo-placa {
+    background: white;
+    border-radius: 14px;
+    padding: 1rem 1.75rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    min-height: 72px;
   }
   .banco-sigla {
     font-size: 2.5rem;
