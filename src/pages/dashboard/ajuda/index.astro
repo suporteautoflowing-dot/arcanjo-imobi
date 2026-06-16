@@ -244,6 +244,21 @@ const abas = [
     </a>
   </div>
 
+  <!-- Lightbox Modal -->
+  <div id="lightbox" role="dialog" aria-modal="true" aria-label="Imagem ampliada">
+    <div id="lightbox-backdrop"></div>
+    <div id="lightbox-box">
+      <button id="lightbox-close" aria-label="Fechar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+      <img id="lightbox-img" src="" alt="Imagem ampliada" />
+      <p id="lightbox-hint">Pressione Esc ou clique fora para fechar</p>
+    </div>
+  </div>
+
 </AdminLayout>
 
 <style>
@@ -325,6 +340,52 @@ const abas = [
     .help-search-wrap { width: 100%; margin-left: 0; }
     .help-grid { grid-template-columns: 1fr; }
   }
+
+  /* ── Lightbox ── */
+  #lightbox {
+    display: none;
+    position: fixed; inset: 0; z-index: 9999;
+    align-items: center; justify-content: center;
+  }
+  #lightbox.open { display: flex; }
+  #lightbox-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.88);
+    backdrop-filter: blur(6px);
+    animation: lbFadeIn 0.2s ease;
+  }
+  #lightbox-box {
+    position: relative; z-index: 1;
+    max-width: min(90vw, 1200px);
+    max-height: 90vh;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+    animation: lbZoomIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  #lightbox-img {
+    display: block;
+    max-width: 100%; max-height: 85vh;
+    object-fit: contain;
+    border-radius: 16px;
+  }
+  #lightbox-close {
+    position: absolute; top: 0.75rem; right: 0.75rem;
+    width: 36px; height: 36px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50%; color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.18s, transform 0.18s; z-index: 2;
+  }
+  #lightbox-close:hover { background: rgba(220,38,38,0.8); transform: scale(1.1); }
+  #lightbox-hint {
+    text-align: center; color: rgba(255,255,255,0.45);
+    font-size: 0.72rem; margin-top: 0.75rem;
+    position: absolute; bottom: -2rem; left: 0; right: 0;
+  }
+  @keyframes lbFadeIn  { from { opacity:0 } to { opacity:1 } }
+  @keyframes lbZoomIn  { from { opacity:0; transform:scale(0.88) } to { opacity:1; transform:scale(1) } }
 </style>
 
 <script>
@@ -369,5 +430,34 @@ const abas = [
       abaAtiva = 'todos';
     }
     filtrar();
+  });
+
+  // ── Lightbox ──
+  const lb        = document.getElementById('lightbox')!;
+  const lbImg     = document.getElementById('lightbox-img') as HTMLImageElement;
+  const lbClose   = document.getElementById('lightbox-close')!;
+  const lbBackdrop = document.getElementById('lightbox-backdrop')!;
+
+  function openLightbox(src: string) {
+    lbImg.src = src;
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    lb.classList.remove('open');
+    document.body.style.overflow = '';
+    setTimeout(() => { lbImg.src = ''; }, 300);
+  }
+
+  document.addEventListener('lightbox:open', (e: Event) => {
+    const src = (e as CustomEvent).detail?.src;
+    if (src) openLightbox(src);
+  });
+
+  lbClose.addEventListener('click', closeLightbox);
+  lbBackdrop.addEventListener('click', closeLightbox);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
   });
 </script>
