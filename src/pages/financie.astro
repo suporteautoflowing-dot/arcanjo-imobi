@@ -28,22 +28,25 @@ const dicas = [
   { icone:'🏠', titulo:'Prazo de financiamento', texto:'Prazos mais longos reduzem a parcela, mas aumentam o valor total pago. Simule diferentes cenários.' },
 ];
 
+const coresBancos: Record<string, { cor: string; bg: string; descricao: string; tag: string; destaque: boolean }> = {
+  'Caixa Econômica Federal': { cor:'#005ca9', bg:'linear-gradient(140deg,#004a8f 0%,#0076cc 100%)', descricao:'Maior agente de crédito habitacional do Brasil. Taxas especiais pelo programa Casa Verde e Amarela.', tag:'Mais popular', destaque:true },
+  'Banco do Brasil':         { cor:'#003882', bg:'linear-gradient(140deg,#002a6e 0%,#f5d600 100%)', descricao:'Condições exclusivas para servidores federais. Juros a partir de 8,99% ao ano.', tag:'', destaque:false },
+  'Santander':               { cor:'#ec0000', bg:'linear-gradient(140deg,#b00000 0%,#ff3333 100%)', descricao:'Simulação 100% digital com resposta em minutos. Taxas competitivas e aprovação facilitada.', tag:'', destaque:false },
+  'Bradesco':                { cor:'#cc092f', bg:'linear-gradient(140deg,#8e0020 0%,#d9103a 100%)', descricao:'Parcelas que cabem no seu bolso, prazo de até 35 anos e sem necessidade de conta corrente.', tag:'', destaque:false },
+  'Itaú':                    { cor:'#f47920', bg:'linear-gradient(140deg,#002776 0%,#f47920 100%)', descricao:'Crédito imobiliário digital com parcelas fixas, carência especial e aprovação ágil.', tag:'', destaque:false },
+  'Sicoob':                  { cor:'#007a3d', bg:'linear-gradient(140deg,#00582b 0%,#00b050 100%)', descricao:'Crédito habitacional cooperativo com atendimento personalizado e taxas diferenciadas para associados.', tag:'', destaque:false },
+};
+
 let bancosExibicao = [];
 const bancosDB = await db.select().from(bancos_financiamento).where(eq(bancos_financiamento.tenant_id, tenant.id)).orderBy(asc(bancos_financiamento.ordem));
 
 if (bancosDB.length > 0) {
-  bancosExibicao = bancosDB.map(b => ({
-    nome: b.nome,
-    descricao: '',
-    cor: '#0d6efd',
-    url: b.link,
-    destaque: false,
-    tag: '',
-    sigla: b.nome.substring(0,2).toUpperCase(),
-    logo_url: b.logo_url
-  }));
+  bancosExibicao = bancosDB.map(b => {
+    const m = coresBancos[b.nome] ?? { cor:'#0d6efd', bg:'linear-gradient(140deg,#0d6efd,#0a58ca)', descricao:'', tag:'', destaque:false };
+    return { nome:b.nome, descricao:m.descricao, cor:m.cor, bg:m.bg, url:b.link, destaque:m.destaque, tag:m.tag, sigla:b.nome.substring(0,2).toUpperCase(), logo_url:b.logo_url };
+  });
 } else {
-  bancosExibicao = bancos;
+  bancosExibicao = bancos.map(b => ({ ...b, bg: coresBancos[b.nome]?.bg ?? 'linear-gradient(140deg,#0d6efd,#0a58ca)' }));
 }
 ---
 
@@ -84,18 +87,27 @@ if (bancosDB.length > 0) {
              class={`banco-card ${b.destaque ? 'banco-destaque' : ''}`}
              id={`banco-${b.sigla.toLowerCase().replace(/\s+/g,'')}`}>
             {b.tag && <div class="banco-tag">{b.tag}</div>}
-            <div class="banco-logo" style={`border-top: 4px solid ${b.cor};`}>
-              {b.logo_url ? (
-                <img src={b.logo_url} alt={b.nome} style="max-width:100px;max-height:60px;object-fit:contain;" />
-              ) : (
-                <div class="banco-sigla" style={`color:${b.cor};`}>{b.sigla}</div>
-              )}
+
+            <!-- Topo colorido com logo -->
+            <div class="banco-topo" style={`background:${b.bg};`}>
+              <div class="banco-logo-wrap">
+                {b.logo_url ? (
+                  <img src={b.logo_url} alt={b.nome}
+                    style="max-width:130px;max-height:56px;object-fit:contain;filter:brightness(0) invert(1);" />
+                ) : (
+                  <div class="banco-sigla">{b.sigla}</div>
+                )}
+              </div>
             </div>
+
+            <!-- Corpo do card -->
             <div class="banco-body">
               <h3>{b.nome}</h3>
               {b.descricao && <p>{b.descricao}</p>}
             </div>
-            <div class="banco-cta" style={`background:${b.cor};`}>
+
+            <!-- Botão CTA -->
+            <div class="banco-cta" style={`color:${b.cor};`}>
               <span>Simular agora</span>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </div>
@@ -177,18 +189,86 @@ if (bancosDB.length > 0) {
   .sec-intro p { font-size:.95rem; color:var(--color-muted); }
 
   /* Bancos */
-  .bancos-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.25rem; margin-bottom:1.5rem; }
-  .banco-card { background:white; border:1.5px solid var(--color-border); border-radius:16px; overflow:hidden; text-decoration:none; color:inherit; display:flex; flex-direction:column; position:relative; transition:transform .2s, box-shadow .2s; box-shadow:0 2px 8px rgba(0,0,0,.05); }
-  .banco-card:hover { transform:translateY(-4px); box-shadow:0 12px 32px rgba(0,0,0,.12); }
-  .banco-destaque { border-color:#0d6efd; box-shadow:0 4px 20px rgba(13,110,253,.15); }
-  .banco-tag { position:absolute; top:12px; right:12px; background:#0d6efd; color:white; font-size:.65rem; font-weight:700; text-transform:uppercase; padding:.25rem .625rem; border-radius:100px; }
-  .banco-logo { padding:2rem 1.5rem 1.25rem; display:flex; align-items:center; justify-content:center; background:#f8fafc; min-height:110px; }
-  .banco-sigla { font-size:1.75rem; font-weight:900; }
-  .banco-body { padding:1.25rem; flex:1; }
-  .banco-body h3 { font-size:1rem; font-weight:700; color:var(--color-text); margin-bottom:.5rem; }
-  .banco-body p { font-size:.82rem; color:var(--color-muted); line-height:1.6; }
-  .banco-cta { display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.875rem 1.25rem; color:white; font-size:.875rem; font-weight:700; transition:filter .18s; }
-  .banco-card:hover .banco-cta { filter:brightness(1.12); }
+  .bancos-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; margin-bottom:1.5rem; }
+
+  .banco-card {
+    background: white;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 20px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  }
+  .banco-card:hover {
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: 0 20px 48px rgba(0,0,0,.14);
+  }
+  .banco-destaque { border-color:#0d6efd; box-shadow:0 4px 24px rgba(13,110,253,.18); }
+  .banco-tag {
+    position: absolute; top: 14px; right: 14px; z-index: 2;
+    background: rgba(255,255,255,.25); backdrop-filter: blur(8px);
+    color: white; font-size: .65rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .08em;
+    padding: .3rem .75rem; border-radius: 100px;
+    border: 1px solid rgba(255,255,255,.4);
+  }
+
+  /* Topo colorido */
+  .banco-topo {
+    position: relative;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .banco-topo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 30% 30%, rgba(255,255,255,.15) 0%, transparent 65%);
+  }
+  .banco-logo-wrap {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 1.5rem;
+  }
+  .banco-sigla {
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: white;
+    letter-spacing: -.04em;
+    text-shadow: 0 2px 8px rgba(0,0,0,.2);
+  }
+
+  /* Corpo */
+  .banco-body { padding: 1.25rem 1.4rem; flex: 1; }
+  .banco-body h3 {
+    font-size: .975rem; font-weight: 700;
+    color: #111827; margin-bottom: .45rem;
+  }
+  .banco-body p { font-size: .8rem; color: #6b7280; line-height: 1.65; }
+
+  /* CTA inferior */
+  .banco-cta {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .9rem 1.4rem;
+    border-top: 1px solid #f3f4f6;
+    font-size: .875rem; font-weight: 700;
+    transition: background .18s, padding-right .18s;
+  }
+  .banco-cta svg { transition: transform .2s; }
+  .banco-card:hover .banco-cta { background: #f9fafb; padding-right: 1rem; }
+  .banco-card:hover .banco-cta svg { transform: translateX(4px); }
 
   /* Aviso */
   .aviso { display:flex; align-items:flex-start; gap:.875rem; background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:12px; padding:1rem 1.25rem; margin-bottom:4rem; font-size:.85rem; color:#1e3a5f; line-height:1.6; }
