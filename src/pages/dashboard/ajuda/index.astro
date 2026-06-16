@@ -6,13 +6,13 @@ import { getAuthFromCookie } from '../../../lib/auth';
 const auth = getAuthFromCookie(Astro.request);
 if (!auth) return Astro.redirect('/auth/login');
 
-// URLs das imagens dos tutoriais (já no servidor)
+// URLs das imagens dos tutoriais (arquivos permanentes no git)
 const IMG = {
-  dashboard: '/uploads/1781581655934-tut-dashboard.png.png',
-  imovel:    '/uploads/1781581656713-tut-imovel.png.png',
-  leads:     '/uploads/1781581657405-tut-leads.png.png',
-  banner:    '/uploads/1781581658058-tut-banner.png.png',
-  config:    '/uploads/1781581658679-tut-config.png.png',
+  dashboard: '/uploads/tut-dashboard.png',
+  imovel:    '/uploads/tut-imovel.png',
+  leads:     '/uploads/tut-leads.png',
+  banner:    '/uploads/tut-banner.png',
+  config:    '/uploads/tut-config.png',
 };
 
 const tutoriais = [
