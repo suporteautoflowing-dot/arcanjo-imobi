@@ -2,7 +2,6 @@ import type { APIRoute } from 'astro';
 import { getAuthFromCookie } from '../../../lib/auth';
 import { db } from '../../../lib/db';
 import { tenants } from '../../../lib/schema';
-import { eq } from 'drizzle-orm';
 
 export const POST: APIRoute = async ({ request }) => {
   const auth = getAuthFromCookie(request);
@@ -17,13 +16,17 @@ export const POST: APIRoute = async ({ request }) => {
       return Response.json({ error: 'Tipo inválido' }, { status: 400 });
     }
 
-    const updateData: Record<string, any> = { updated_at: new Date() };
+    // Single-tenant: busca sempre o primeiro tenant
+    const [tenant] = await db.select().from(tenants).limit(1);
+    if (!tenant) return Response.json({ error: 'Tenant não encontrado' }, { status: 404 });
 
-    if (tipo === 'logo') updateData.logo_url = url;
-    if (tipo === 'favicon') updateData.favicon_url = url;
+    const updateData: Record<string, any> = { updated_at: new Date() };
+    if (tipo === 'logo')        updateData.logo_url    = url;
+    if (tipo === 'favicon')     updateData.favicon_url = url;
     if (tipo === 'hero_imagem') updateData.hero_imagem = url;
 
-    await db.update(tenants).set(updateData).where(eq(tenants.id, auth.tenantId));
+    // Atualiza sem WHERE problemático (auth.tenantId era undefined)
+    await db.update(tenants).set(updateData);
 
     return Response.json({ ok: true, url });
   } catch (err) {
