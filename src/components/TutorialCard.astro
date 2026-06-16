@@ -1,0 +1,225 @@
+---
+interface Step {
+  texto: string;
+}
+
+interface Props {
+  titulo: string;
+  descricao: string;
+  categoria: string;
+  dificuldade: 'Fácil' | 'Médio' | 'Avançado';
+  passos: Step[];
+  imagens: string[]; // URLs das imagens do slideshow
+  link: string;
+  linkLabel: string;
+  cor?: string;
+}
+
+const {
+  titulo,
+  descricao,
+  categoria,
+  dificuldade,
+  passos,
+  imagens,
+  link,
+  linkLabel,
+  cor = '#2563eb',
+} = Astro.props;
+
+const id = titulo.toLowerCase().replace(/[^a-z0-9]/g, '-');
+const difCor = dificuldade === 'Fácil' ? '#16a34a' : dificuldade === 'Médio' ? '#d97706' : '#dc2626';
+---
+
+<div class="tcard" id={`card-${id}`}>
+  <!-- Header -->
+  <div class="tcard-header">
+    <div class="tcard-meta">
+      <span class="tcard-cat" style={`background:${cor}22;color:${cor};`}>{categoria}</span>
+      <span class="tcard-dif" style={`background:${difCor}18;color:${difCor};`}>{dificuldade}</span>
+    </div>
+    <h3 class="tcard-title">{titulo}</h3>
+    <p class="tcard-desc">{descricao}</p>
+  </div>
+
+  <!-- Slideshow -->
+  <div class="tcard-slideshow" data-id={id}>
+    <div class="tcard-frames">
+      {imagens.map((src, i) => (
+        <img
+          src={src}
+          alt={`Passo ${i + 1} — ${titulo}`}
+          class={`tcard-frame ${i === 0 ? 'active' : ''}`}
+          loading="lazy"
+        />
+      ))}
+    </div>
+    <!-- Barra de progresso -->
+    <div class="tcard-progress">
+      {imagens.map((_, i) => (
+        <button
+          class={`tcard-dot ${i === 0 ? 'active' : ''}`}
+          data-index={i}
+          aria-label={`Ir para passo ${i + 1}`}
+        />
+      ))}
+    </div>
+    <!-- Controles -->
+    {imagens.length > 1 && (
+      <div class="tcard-controls">
+        <button class="tcard-btn prev" aria-label="Anterior">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="tcard-counter">1 / {imagens.length}</span>
+        <button class="tcard-btn next" aria-label="Próximo">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    )}
+  </div>
+
+  <!-- Passos -->
+  <div class="tcard-steps">
+    <div class="tcard-steps-title">Passo a passo</div>
+    <ol class="tcard-list">
+      {passos.map((p, i) => (
+        <li class="tcard-step" data-card={id} data-step={i}>
+          <span class="tcard-num" style={`background:${cor};`}>{i + 1}</span>
+          <span class="tcard-step-text">{p.texto}</span>
+        </li>
+      ))}
+    </ol>
+  </div>
+
+  <!-- Ação -->
+  <div class="tcard-footer">
+    <a href={link} class="tcard-action" style={`background:${cor};`}>
+      {linkLabel}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</div>
+
+<style>
+  .tcard {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .tcard:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.1); transform: translateY(-2px); }
+
+  .tcard-header { padding: 1.25rem 1.25rem 0; }
+  .tcard-meta { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .tcard-cat, .tcard-dif {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 99px;
+  }
+  .tcard-title { font-size: 1rem; font-weight: 700; color: var(--text, #111827); margin: 0 0 0.35rem; }
+  .tcard-desc { font-size: 0.8rem; color: var(--muted, #6b7280); line-height: 1.5; margin: 0; }
+
+  /* Slideshow */
+  .tcard-slideshow {
+    position: relative;
+    margin: 1rem 1.25rem 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0f172a;
+    aspect-ratio: 16/9;
+  }
+  .tcard-frames { position: relative; width: 100%; height: 100%; }
+  .tcard-frame {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: 0; transition: opacity 0.4s ease;
+  }
+  .tcard-frame.active { opacity: 1; }
+
+  .tcard-progress {
+    position: absolute; bottom: 0.6rem; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 0.35rem; z-index: 2;
+  }
+  .tcard-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.35);
+    border: none; cursor: pointer; padding: 0; transition: all 0.2s;
+  }
+  .tcard-dot.active { background: #fff; width: 18px; border-radius: 3px; }
+
+  .tcard-controls {
+    position: absolute; bottom: 0.5rem; right: 0.75rem;
+    display: flex; align-items: center; gap: 0.4rem; z-index: 2;
+  }
+  .tcard-btn {
+    width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.15);
+    border: none; cursor: pointer; color: white; display: flex;
+    align-items: center; justify-content: center; transition: background 0.2s;
+  }
+  .tcard-btn:hover { background: rgba(255,255,255,0.3); }
+  .tcard-counter { font-size: 0.65rem; color: rgba(255,255,255,0.6); min-width: 30px; text-align: center; }
+
+  /* Steps */
+  .tcard-steps { padding: 1rem 1.25rem 0; }
+  .tcard-steps-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted, #6b7280); margin-bottom: 0.6rem; }
+  .tcard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .tcard-step {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    font-size: 0.82rem; color: var(--text, #374151); line-height: 1.4;
+    padding: 0.5rem 0.6rem; border-radius: 8px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .tcard-step:hover, .tcard-step.active { background: var(--bg-alt, #f9fafb); }
+  .tcard-num {
+    min-width: 20px; height: 20px; border-radius: 50%; color: white;
+    font-size: 0.65rem; font-weight: 800; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; margin-top: 1px;
+  }
+
+  /* Footer */
+  .tcard-footer { padding: 1rem 1.25rem 1.25rem; margin-top: auto; }
+  .tcard-action {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 1.1rem; border-radius: 8px; color: white;
+    font-size: 0.82rem; font-weight: 700; text-decoration: none;
+    transition: opacity 0.2s, transform 0.15s;
+  }
+  .tcard-action:hover { opacity: 0.88; transform: translateX(2px); }
+</style>
+
+<script>
+  // Slideshow controller
+  document.querySelectorAll<HTMLElement>('.tcard-slideshow').forEach(el => {
+    const id = el.dataset.id!;
+    const frames = el.querySelectorAll<HTMLImageElement>('.tcard-frame');
+    const dots = el.querySelectorAll<HTMLButtonElement>('.tcard-dot');
+    const counter = el.querySelector<HTMLSpanElement>('.tcard-counter');
+    const steps = document.querySelectorAll<HTMLLIElement>(`.tcard-step[data-card="${id}"]`);
+    let current = 0;
+    let timer: ReturnType<typeof setInterval>;
+
+    function goTo(i: number) {
+      frames[current]?.classList.remove('active');
+      dots[current]?.classList.remove('active');
+      steps[current]?.classList.remove('active');
+      current = (i + frames.length) % frames.length;
+      frames[current]?.classList.add('active');
+      dots[current]?.classList.add('active');
+      steps[current]?.classList.add('active');
+      if (counter) counter.textContent = `${current + 1} / ${frames.length}`;
+    }
+
+    function startAuto() {
+      clearInterval(timer);
+      timer = setInterval(() => goTo(current + 1), 3000);
+    }
+
+    el.querySelector('.next')?.addEventListener('click', () => { goTo(current + 1); startAuto(); });
+    el.querySelector('.prev')?.addEventListener('click', () => { goTo(current - 1); startAuto(); });
+    dots.forEach((d, i) => d.addEventListener('click', () => { goTo(i); startAuto(); }));
+    steps.forEach((s, i) => s.addEventListener('click', () => { goTo(i); startAuto(); }));
+
+    goTo(0);
+    if (frames.length > 1) startAuto();
+  });
+</script>
