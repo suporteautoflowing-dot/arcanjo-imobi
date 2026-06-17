@@ -23,7 +23,6 @@ export const tenants = mysqlTable('tenants', {
   logo_url: text('logo_url'),
   favicon_url: text('favicon_url'),
   hero_imagem: text('hero_imagem'),
-  diferencial_imagem: text('diferencial_imagem'),
 
   // Banner / Hero
   hero_titulo: varchar('hero_titulo', { length: 300 }).default('Encontre o imóvel dos seus sonhos'),

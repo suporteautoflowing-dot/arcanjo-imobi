@@ -217,11 +217,12 @@ if (Astro.request.method === 'POST') {
           <a href="/contato" class="btn btn-primary btn-lg" id="diferencial-cta">Fale com um especialista</a>
         </div>
         <div class="diferencial-image fade-in">
-          <img
-            src={tenant.diferencial_imagem ?? '/uploads/diferencial-default.png'}
-            alt={`Por que escolher a ${tenant.nome_empresa}`}
-            class="diferencial-img"
-          />
+          <div class="diferencial-placeholder">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.2;color:white;">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </div>
           <div class="diferencial-badge">
             <strong>{hero.stat_clientes}</strong>
             <span>famílias atendidas</span>
@@ -368,7 +369,6 @@ if (Astro.request.method === 'POST') {
   .diferencial-list li { display: flex; align-items: flex-start; gap: 0.75rem; font-size: var(--font-size-base); color: rgba(255,255,255,0.8); }
   .check-icon { width: 24px; height: 24px; border-radius: 50%; background: var(--color-primary); color: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
   .diferencial-image { position: relative; border-radius: var(--radius-xl); overflow: hidden; aspect-ratio: 4/3; background: rgba(255,255,255,0.05); }
-  .diferencial-img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .diferencial-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
   .diferencial-badge { position: absolute; bottom: 1.5rem; left: 1.5rem; background: var(--color-primary); color: white; border-radius: var(--radius-lg); padding: 1rem 1.25rem; display: flex; flex-direction: column; line-height: 1.2; }
   .diferencial-badge strong { font-size: 1.5rem; font-weight: 800; }
