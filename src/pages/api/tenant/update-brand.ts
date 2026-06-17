@@ -11,7 +11,7 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json() as { tipo: string; url: string };
     const { tipo, url } = body;
 
-    const allowedTypes = ['logo', 'favicon', 'hero_imagem'];
+    const allowedTypes = ['logo', 'favicon', 'hero_imagem', 'diferencial_imagem'];
     if (!allowedTypes.includes(tipo)) {
       return Response.json({ error: 'Tipo inválido' }, { status: 400 });
     }
@@ -21,9 +21,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (!tenant) return Response.json({ error: 'Tenant não encontrado' }, { status: 404 });
 
     const updateData: Record<string, any> = { updated_at: new Date() };
-    if (tipo === 'logo')        updateData.logo_url    = url;
-    if (tipo === 'favicon')     updateData.favicon_url = url;
-    if (tipo === 'hero_imagem') updateData.hero_imagem = url;
+    if (tipo === 'logo')               updateData.logo_url           = url;
+    if (tipo === 'favicon')            updateData.favicon_url        = url;
+    if (tipo === 'hero_imagem')        updateData.hero_imagem        = url;
+    if (tipo === 'diferencial_imagem') updateData.diferencial_imagem = url;
 
     // Atualiza sem WHERE problemático (auth.tenantId era undefined)
     await db.update(tenants).set(updateData);

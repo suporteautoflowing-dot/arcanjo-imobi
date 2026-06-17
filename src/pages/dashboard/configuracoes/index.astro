@@ -28,8 +28,9 @@ let conf = {
   facebook:          tenant.facebook ?? '',
   endereco:          tenant.endereco ?? '',
   horario:           tenant.horario ?? '',
-  logo_url:          tenant.logo_url ?? '',
-  favicon_url:       tenant.favicon_url ?? '',
+  logo_url:           tenant.logo_url ?? '',
+  favicon_url:        tenant.favicon_url ?? '',
+  diferencial_imagem: (tenant as any).diferencial_imagem ?? '',
   cor_primaria:      tenant.cor_primaria ?? DEFAULTS.cor_primaria,
   cor_primaria_dark: tenant.cor_primaria_dark ?? DEFAULTS.cor_primaria_dark,
   cor_escura:        tenant.cor_escura ?? DEFAULTS.cor_escura,
@@ -306,6 +307,31 @@ if (Astro.request.method === 'POST') {
           <div id="fav-status" style="margin-top:0.5rem;font-size:0.8rem;display:none;"></div>
         </div>
       </div>
+
+      <!-- Imagem Diferencial -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">🏠 Imagem "Por que nos escolher"</span></div>
+        <div class="card-body">
+          <div id="dif-preview" style="background:var(--bg-alt);border-radius:10px;overflow:hidden;margin-bottom:1rem;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;">
+            {conf.diferencial_imagem ? (
+              <img src={conf.diferencial_imagem} alt="Imagem diferencial" style="width:100%;height:100%;object-fit:cover;display:block;" />
+            ) : (
+              <img src="/uploads/diferencial-default.png" alt="Imagem padrão" style="width:100%;height:100%;object-fit:cover;display:block;opacity:0.7;" />
+            )}
+          </div>
+          <div>
+            <input type="file" id="dif-input" accept=".png,.jpg,.jpeg,.webp" style="display:none;" />
+            <div style="text-align:center;padding:1.25rem;border:2px dashed var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s;" onclick="document.getElementById('dif-input').click()">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto .5rem;color:var(--muted);display:block;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div style="font-size:0.82rem;font-weight:600;color:var(--text);">Clique para trocar a imagem</div>
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:0.25rem;">PNG, JPG ou WEBP · máx. 5MB</div>
+              <div style="font-size:0.72rem;color:var(--primary);margin-top:0.15rem;font-weight:600;">📐 Recomendado: 800 × 600 px</div>
+              <div style="font-size:0.7rem;color:#16a34a;margin-top:0.2rem;font-weight:600;">✅ Salvo no banco — nunca some</div>
+            </div>
+          </div>
+          <div id="dif-status" style="margin-top:0.5rem;font-size:0.8rem;display:none;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -421,5 +447,10 @@ if (Astro.request.method === 'POST') {
   document.getElementById('fav-input')?.addEventListener('change', (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (file) uploadBrand('favicon', file, 'fav-status');
+  });
+
+  document.getElementById('dif-input')?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) uploadBrand('diferencial_imagem', file, 'dif-status');
   });
 </script>
